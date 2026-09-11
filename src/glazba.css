@@ -1,0 +1,1461 @@
+/*
+ * Sav izgled Lucifyja. Boje su ispisane doslovno, a ne kroz varijable, jer
+ * ploča s glazbom ima jednu temu i nema je zašto mijenjati: svijetla bi od nje
+ * napravila nešto treće, ni jedno ni drugo.
+ *
+ * Nazivi razreda počinju slovom `g`. To je ostalo iz vremena kad je Lucify
+ * bio alat unutar bilježnice, gdje je svaki zajednički naziv razreda mogao
+ * prosuti boju ili razmak iz njega. Ovdje sudara više nema, ali pravilo vrijedi i
+ * dalje, jer se `glazba.css` ne smije sudariti ni sam sa sobom: razred za redak
+ * koji svira jednom je nazvan `gsvira`, a to je već bio okrugli gumb od
+ * trideset četiri točke, pa se redak stisnuo na tu mjeru i razlio preko popisa.
+ * Sada se zove `gtece`. Prije novoga naziva vrijedi `grep`.
+ */
+
+.glazba {
+  --pod: #0a0a0b;
+  --ploca: #121214;
+  --ploca-vis: #1c1c20;
+  --tekst: #ffffff;
+  --blijedo: #a8a8b0;
+  --zeleno: #35d17a;
+  --crta: rgba(255, 255, 255, 0.09);
+  --radijus: 10px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--pod);
+  color: var(--tekst);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+}
+
+.glazba *,
+.glazba *::before,
+.glazba *::after {
+  box-sizing: border-box;
+}
+
+/* Ovo je početno stanje gumba, a ne pravilo o njemu, pa ide kroz `:where()`,
+   koje ne nosi težinu. Bez toga bi `.glazba button` bio jači od `.gpusti` i
+   `.gcip`, pa bi zeleni gumb ostao bez podloge, a kartice bez razmaka:
+   dvije klase pobjeđuju jednu, bez obzira na redoslijed. */
+:where(.glazba) :where(button) {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+:where(.glazba) :where(button):disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+.glazba button:focus-visible,
+.glazba input:focus-visible,
+.glazba a:focus-visible {
+  outline: 2px solid var(--zeleno);
+  outline-offset: 2px;
+}
+/* Zaobljenje prstena početno je stanje, a ne pravilo o obliku, pa i ono ide
+   kroz `:where()`. Dok je stajalo uz obris, četiri točke pobjeđivala su vlastiti
+   polumjer svakoga okruglog gumba, pa je traka za traženje pri pisanju
+   postajala četvrtasta, a onda se pri odlasku vraćala u pilulu. */
+:where(.glazba) :where(button, input, a):where(:focus-visible) {
+  border-radius: 4px;
+}
+:where(.glazba) :where(h1, h2, h3, h6, p, ul, ol) {
+  margin: 0;
+  padding: 0;
+}
+:where(.glazba) :where(li) {
+  list-style: none;
+}
+
+/* Klizači su u tamnom, jer bi inače svaki stupac dobio svijetlu prugu. */
+.glazba ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.glazba ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 8px;
+}
+.glazba ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+  background-clip: content-box;
+}
+.glazba ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- gornja traka ---------- */
+
+.gvrh {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 4px;
+}
+/* Znak i ime. Ime nestaje na uskom zaslonu, a znak ostaje: on je ono po čemu
+   se aplikacija prepoznaje, a traka je ondje pretijesna za oboje. */
+.gznak {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-right: 4px;
+  flex: none;
+}
+.gznak b {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+@media (max-width: 600px) {
+  .gznak b {
+    display: none;
+  }
+}
+
+/* Zbirka je na širokom zaslonu stalno na svom mjestu, pa joj tipka ne treba. */
+.gvrh .zbirkatipka {
+  display: none;
+}
+@media (max-width: 1000px) {
+  .gvrh .zbirkatipka {
+    display: grid;
+  }
+}
+.gtrazi {
+  position: relative;
+  flex: 1;
+  max-width: 420px;
+}
+.gtrazi svg {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--blijedo);
+  pointer-events: none;
+}
+.gtrazi input {
+  width: 100%;
+  padding: 11px 14px 11px 38px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--ploca);
+  color: var(--tekst);
+  font: inherit;
+}
+.gtrazi input::placeholder {
+  color: var(--blijedo);
+}
+.gtrazi input:hover,
+.gtrazi input:focus {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: var(--ploca-vis);
+  outline: none;
+}
+.gvrh .desno {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.gikona {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--blijedo);
+}
+.gikona:hover {
+  color: var(--tekst);
+  background: var(--ploca-vis);
+}
+.gikona[aria-pressed="true"] {
+  color: var(--zeleno);
+}
+
+/* ---------- tri stupca ---------- */
+
+.gsadrzaj {
+  display: grid;
+  grid-template-columns: 292px minmax(0, 1fr);
+  gap: 8px;
+  padding: 4px 8px 8px;
+  min-height: 0;
+}
+.gsadrzaj.spanelom {
+  grid-template-columns: 292px minmax(0, 1fr) 328px;
+}
+
+.gzbirka,
+.gglavno,
+.gpanel {
+  background: var(--ploca);
+  border-radius: var(--radijus);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---------- zbirka ---------- */
+
+.gzbirka {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 12px;
+}
+.gzglava {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 8px 10px 16px;
+  color: var(--blijedo);
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.gzglava .novi {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.gzglava .novi:hover {
+  color: var(--tekst);
+  background: var(--ploca-vis);
+}
+.gfiltar {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 10px;
+  flex-wrap: wrap;
+}
+.gcip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--ploca-vis);
+  font-size: 12.5px;
+  color: var(--tekst);
+}
+.gcip[aria-pressed="true"] {
+  background: var(--tekst);
+  color: #000;
+}
+.gzpretraga {
+  padding: 0 12px 8px;
+}
+.gzpretraga input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: var(--ploca-vis);
+  color: var(--tekst);
+  font: inherit;
+  font-size: 13px;
+}
+.gzpretraga input::placeholder {
+  color: var(--blijedo);
+}
+.gzpretraga input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.gpopis {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+}
+.gstavka {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  text-align: left;
+  width: 100%;
+}
+.gstavka:hover {
+  background: var(--ploca-vis);
+}
+.gstavka[aria-current="true"] {
+  background: #2a2a30;
+}
+.gstavka b {
+  display: block;
+  font-weight: 500;
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gstavka[aria-current="true"] b,
+.gstavka.svira b {
+  color: var(--zeleno);
+}
+.gstavka span {
+  display: block;
+  color: var(--blijedo);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- omoti ---------- */
+
+.gomot {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--ploca-vis);
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.gomot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Sličica s YouTubea je široka 16:9, pa se u kvadratu reže sa strana, kao i u
+   pravom svirač; zato `object-fit: cover`, a ne `contain`. */
+.gomot.mozaik {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 0;
+  place-items: stretch;
+}
+.gomot.slova {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(150deg, hsl(var(--ton) 42% 42%), hsl(var(--ton2) 38% 22%));
+  font-size: 42%;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- glavni stupac ---------- */
+
+.gzaglavlje {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  padding: 32px 28px 24px;
+  background: linear-gradient(178deg, hsl(var(--ton) 46% 34%), var(--ploca) 92%);
+}
+.gzaglavlje .gomot {
+  width: 212px;
+  box-shadow: 0 8px 34px rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+}
+.gnatpisi {
+  min-width: 0;
+  padding-bottom: 6px;
+}
+.gnatpisi .vrsta {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.gnatpisi h1 {
+  font-size: clamp(28px, 4.2vw, 62px);
+  line-height: 1.06;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  margin: 10px 0 14px;
+  overflow-wrap: anywhere;
+}
+.gnatpisi .mjere {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+}
+.gnatpisi .mjere b {
+  font-weight: 600;
+  color: var(--tekst);
+}
+.gnatpisi .tocka {
+  opacity: 0.6;
+}
+
+.galatke {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 28px 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.28), transparent 120px);
+}
+.gpusti {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--zeleno);
+  color: #000;
+  display: grid;
+  place-items: center;
+  flex: none;
+  transition: transform 0.1s ease;
+}
+.gpusti:hover {
+  transform: scale(1.05);
+}
+.galatke .gikona {
+  width: 40px;
+  height: 40px;
+}
+.galatke .gikona svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Mjerač vremena. Dok odbrojava, uz znak stoji i preostalo vrijeme, pa gumb iz
+   kruga naraste u pilulu: koliko je još ostalo mora se vidjeti bez otvaranja
+   izbornika, inače se mjerač zaboravi da je uopće postavljen. */
+.gmjerac {
+  margin-left: auto;
+}
+/* `flex` je ovdje zato što uz znak može stajati i vrijeme, a `place-items` iz
+   `.gikona` u flex kutiji poravna samo uspravno: bez `justify-content` znak je
+   stajao uz lijevi rub kruga, pa je izgledao pomaknuto. */
+.gmjerac .gikona {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.gmjerac .gikona.gtraje {
+  width: auto;
+  padding: 0 15px 0 12px;
+  border-radius: 999px;
+  color: var(--zeleno);
+  background: rgba(255, 255, 255, 0.08);
+}
+.gmjerac .gikona.gtraje span {
+  font-size: 13px;
+  font-weight: 600;
+  /* Znamenke jednake širine, da se pilula ne trza pri svakoj sekundi. */
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Izbornik je `fixed` i mjesto dobiva pri otvaranju, isto kao onaj nad redkom.
+   Kao `absolute` unutar alatki bio je uredniji, ali popis pjesama ima vlastiti
+   klizač, pa mu je donji rub na niskom prozoru odrezao redak s vlastitim
+   vremenom.
+   ⚠ Redak nosi i `.gmjerac`, iako bi i bez njega pogodio: `.gjelovnik` stoji
+   niže u ovoj datoteci, pa bi pri jednakoj težini pobijedila njegova širina. */
+.gmjerac .gmjerilo {
+  min-width: 232px;
+}
+.gmjerac .gmjerilo [aria-current="true"] {
+  color: var(--zeleno);
+}
+.gmjerac .gvlastito {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 11px 8px;
+}
+.gmjerac .gvlastito input {
+  width: 62px;
+  padding: 7px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--crta);
+  background: var(--ploca-vis);
+  color: var(--tekst);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  /* Strelice uz brojčano polje crta operacijski sustav, svijetle i četvrtaste,
+     pa iz tamnoga izbornika iskaču, kao i padajući popis. */
+  appearance: textfield;
+}
+.gmjerac .gvlastito input::-webkit-outer-spin-button,
+.gmjerac .gvlastito input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.gmjerac .gvlastito span {
+  font-size: 13px;
+  color: var(--blijedo);
+}
+.gmjerac .gvlastito button {
+  width: auto;
+  margin-left: auto;
+  padding: 7px 13px;
+  background: rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+}
+/* Naslov stupca kojim se poreda popis. Nasljeuđuje sve od zaglavlja retka, pa
+   ostaje sitan i verzalan kao i stupci koji se ne poredavaju. */
+.gporedaj {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.gporedaj > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gporedaj:hover {
+  color: var(--tekst);
+}
+.gporedaj.on {
+  color: var(--zeleno);
+}
+.gporedaj svg {
+  flex: none;
+}
+/* Isti znak, okrenut, umjesto drugoga: tako se strelica pri promjeni smjera
+   prevrne na mjestu, a širina naslova ostane ista. */
+.gporedaj svg.gore {
+  transform: rotate(180deg);
+}
+/* Zadnji stupac je poravnat udesno, pa se i njegov naslov drži desnoga ruba. */
+.gporedaj.kraj {
+  justify-content: flex-end;
+}
+
+/* ---------- popis pjesama ---------- */
+
+.gtablica {
+  padding: 8px 16px 28px;
+}
+.gredak {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 3.2fr) minmax(0, 2fr) 108px 96px;
+  gap: 14px;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 5px;
+  width: 100%;
+  text-align: left;
+  color: var(--blijedo);
+  font-size: 13.5px;
+}
+.gzaglavljeredka {
+  border-bottom: 1px solid var(--crta);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--blijedo);
+  position: sticky;
+  top: 0;
+  background: var(--ploca);
+  z-index: 2;
+}
+.gredak.pjesma:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+/* Broj retka i trokut stoje jedno preko drugoga, a ne jedno umjesto drugoga,
+   jer se širina stupca inače mijenjala pri prijelazu miša i cijeli je popis
+   poskakivao ustranu. Vidi se uvijek samo jedan od njih.
+
+   Trokut se pokazuje **samo** dok je miš nad retkom. Pjesma koja svira ne drži
+   ga zauvijek: nju se prepoznaje po zelenom naslovu i zelenom broju, kao i
+   drugdje. Prije je ondje stajala pauza, pa je redak koji svira izgledao kao
+   da je zapeo u dodirnutom stanju. */
+.gredak .gbroj {
+  display: grid;
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.gredak .gbrojka,
+.gredak .gznak,
+.gredak .gsviraju {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+}
+.gredak .gznak {
+  visibility: hidden;
+  color: var(--tekst);
+}
+.gredak.pjesma:hover .gbrojka,
+.gredak.pjesma .gbroj:focus-visible .gbrojka {
+  visibility: hidden;
+}
+.gredak.pjesma:hover .gznak,
+.gredak.pjesma .gbroj:focus-visible .gznak {
+  visibility: visible;
+}
+/* Taj gumb jedini nema zeleni prsten. Fokus se na njemu ionako vidi, jer se
+   brojka pretvori u znak za sviranje, a prsten oko tako uskoga gumba stajao je
+   preko broja i izgledao kao da je redak zapeo u dodirnutom stanju. */
+.glazba .gredak .gbroj:focus-visible {
+  outline: none;
+}
+/* Pjesma koja svira: zeleni broj, kao što joj je i naslov zelen. */
+.gredak.sada .gbrojka {
+  color: var(--zeleno);
+}
+
+/* Četiri stupca koja poskakuju dok pjesma svira, umjesto broja retka. Stoje u
+   DOM-u samo dok ta jedna pjesma svira, a ne u svakom retku sakriveni: inače bi
+   u popisu od sto trideset pjesama trajalo pet stotina animacija odjednom.
+   Čim se pauzira, stupci nestaju i broj se vraća. */
+.gredak .gsviraju {
+  align-items: flex-end;
+  gap: 2px;
+  height: 13px;
+}
+.gredak .gsviraju i {
+  width: 2px;
+  height: 40%;
+  border-radius: 1px;
+  background: var(--zeleno);
+  animation: gskace 0.9s ease-in-out infinite;
+}
+/* Negativna zadrška, a ne pozitivna: stupci kreću razmaknuti od prve slike,
+   umjesto da prvih pola sekunde stoje poravnati pa tek onda krenu. */
+.gredak .gsviraju i:nth-child(1) {
+  animation-delay: -0.62s;
+}
+.gredak .gsviraju i:nth-child(2) {
+  animation-delay: -0.17s;
+}
+.gredak .gsviraju i:nth-child(3) {
+  animation-delay: -0.86s;
+}
+.gredak .gsviraju i:nth-child(4) {
+  animation-delay: -0.38s;
+}
+@keyframes gskace {
+  0%,
+  100% {
+    height: 25%;
+  }
+  50% {
+    height: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gredak .gsviraju i {
+    animation: none;
+  }
+}
+
+/* Dok stupci sviraju, broja nema. Prijelaz miša pobjeđuje oboje, jer se ondje
+   pjesmu zaustavlja, pa mora biti vidljivo čime. */
+.gredak.gtece .gbrojka {
+  visibility: hidden;
+}
+.gredak.pjesma:hover .gsviraju,
+.gredak.pjesma .gbroj:focus-visible .gsviraju {
+  visibility: hidden;
+}
+.gredak .naslov {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+.gredak .naslov b {
+  display: block;
+  color: var(--tekst);
+  font-weight: 400;
+  font-size: 14.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gredak .naslov span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+}
+.gredak.sada .naslov b {
+  color: var(--zeleno);
+}
+.gredak .stupac {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gredak .kraj {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.gsrce {
+  color: var(--blijedo);
+  opacity: 0;
+  display: grid;
+  place-items: center;
+}
+.gredak:hover .gsrce,
+.gsrce.puno {
+  opacity: 1;
+}
+.gsrce.puno {
+  color: var(--zeleno);
+}
+.gsrce:hover {
+  color: var(--tekst);
+}
+.gsrce.puno:hover {
+  color: var(--zeleno);
+}
+.gvise {
+  opacity: 0;
+  color: var(--blijedo);
+  display: grid;
+  place-items: center;
+}
+.gredak:hover .gvise,
+.gvise[aria-expanded="true"] {
+  opacity: 1;
+}
+.gvise:hover {
+  color: var(--tekst);
+}
+.gizvor {
+  color: var(--blijedo);
+  text-decoration: none;
+}
+.gizvor:hover {
+  color: var(--tekst);
+  text-decoration: underline;
+}
+
+/* ---------- izbornik nad redkom ---------- */
+
+.gjelovnik {
+  position: fixed;
+  z-index: 80;
+  min-width: 218px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: #26262c;
+  border: 1px solid var(--crta);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+.gjelovnik button,
+.gjelovnik a {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 11px;
+  border-radius: 4px;
+  font-size: 13.5px;
+  color: var(--tekst);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gjelovnik button:hover,
+.gjelovnik a:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.gjelovnik hr {
+  border: 0;
+  border-top: 1px solid var(--crta);
+  margin: 4px 2px;
+}
+.gjelovnik h6 {
+  margin: 0;
+  padding: 8px 11px 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--blijedo);
+  font-weight: 600;
+}
+
+/* ---------- desna ploča ---------- */
+
+.gpanel {
+  padding: 16px;
+}
+.gpanel .gvrhploce {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.gpanel .gvrhploce h2 {
+  font-size: 15px;
+  font-weight: 700;
+}
+.gpanel .veliki {
+  width: 100%;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+.gpanel .gime {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.gpanel .izvodac {
+  color: var(--blijedo);
+  font-size: 13.5px;
+  margin-top: 3px;
+}
+.gkartica {
+  background: var(--ploca-vis);
+  border-radius: 8px;
+  padding: 13px 14px;
+  margin-top: 14px;
+}
+.gkartica h3 {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--blijedo);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.gkartica p {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.9);
+}
+.gkartica .rub {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.gjos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+.gjos button {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 6px;
+  border-radius: 6px;
+  text-align: left;
+}
+.gjos button:hover {
+  background: var(--ploca-vis);
+}
+.gjos b {
+  display: block;
+  font-weight: 400;
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gjos span {
+  display: block;
+  color: var(--blijedo);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- svirač ---------- */
+
+.gsvirac {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px 14px;
+  background: var(--pod);
+}
+.gsada {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.gsada .gomot {
+  width: 56px;
+  border-radius: 5px;
+}
+.gsada .tekst {
+  min-width: 0;
+}
+.gsada b {
+  display: block;
+  font-weight: 400;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gsada span {
+  display: block;
+  color: var(--blijedo);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gsredina {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+}
+.gtipke {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.gsvira {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--tekst);
+  color: #000;
+  display: grid;
+  place-items: center;
+  transition: transform 0.1s ease;
+}
+.gsvira:hover {
+  transform: scale(1.06);
+}
+.gcrta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 620px;
+  color: var(--blijedo);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.gdesno {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.gglasnoca {
+  width: 96px;
+}
+
+/* Jedan klizač za obje trake, i za vrijeme i za glasnoću. Ispuna se crta
+   prelijevom, jer se `::-webkit-slider-runnable-track` ne da obojiti do
+   ručice, a ovako radi u svim preglednicima jednako. */
+.gklizac {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 12px;
+  background: none;
+  cursor: pointer;
+}
+.gklizac::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--puno) var(--posto),
+    rgba(255, 255, 255, 0.24) var(--posto)
+  );
+}
+.gklizac::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--puno) var(--posto),
+    rgba(255, 255, 255, 0.24) var(--posto)
+  );
+}
+.gklizac::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--tekst);
+  opacity: 0;
+}
+.gklizac::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tekst);
+  opacity: 0;
+}
+.gklizac:hover::-webkit-slider-thumb,
+.gklizac:focus-visible::-webkit-slider-thumb {
+  opacity: 1;
+}
+.gklizac:hover::-moz-range-thumb,
+.gklizac:focus-visible::-moz-range-thumb {
+  opacity: 1;
+}
+.gklizac {
+  --puno: var(--tekst);
+  --posto: 0%;
+}
+.gklizac:hover {
+  --puno: var(--zeleno);
+}
+
+/* ---------- poruke ---------- */
+
+.gporuka {
+  max-width: 620px;
+  margin: 12vh auto;
+  padding: 0 24px;
+  text-align: center;
+  color: var(--blijedo);
+}
+.gporuka h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--tekst);
+  margin-bottom: 10px;
+}
+.gporuka p {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.gporuka code {
+  display: inline-block;
+  background: var(--ploca-vis);
+  border: 1px solid var(--crta);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: ui-monospace, "Consolas", monospace;
+  font-size: 13px;
+  color: var(--tekst);
+  overflow-wrap: anywhere;
+}
+.gprazno {
+  padding: 40px 28px;
+  color: var(--blijedo);
+}
+
+/* ---------- uže od stolnog računala ---------- */
+
+.gzastor {
+  display: none;
+}
+
+@media (max-width: 1279px) {
+  .gsadrzaj.spanelom {
+    grid-template-columns: 292px minmax(0, 1fr);
+  }
+  .gsadrzaj.spanelom .gpanel {
+    position: fixed;
+    top: 60px;
+    right: 8px;
+    bottom: 96px;
+    width: 328px;
+    z-index: 70;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  }
+}
+
+@media (max-width: 1000px) {
+  .gsadrzaj,
+  .gsadrzaj.spanelom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .gzbirka {
+    position: fixed;
+    top: 60px;
+    left: 8px;
+    bottom: 96px;
+    width: 292px;
+    z-index: 70;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    transform: translateX(-110%);
+    transition: transform 0.18s ease;
+  }
+  .gsadrzaj.szbirkom .gzbirka {
+    transform: none;
+  }
+  .gsadrzaj.szbirkom .gzastor,
+  .gsadrzaj.spanelom .gzastor {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 65;
+    background: rgba(0, 0, 0, 0.5);
+  }
+  .gzaglavlje .gomot {
+    width: 150px;
+  }
+  .gredak {
+    grid-template-columns: 22px minmax(0, 1fr) 76px;
+  }
+  .gredak .stupac,
+  .gredak .dodano {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .gzaglavlje {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px 18px;
+  }
+  .galatke,
+  .gtablica {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .gsvirac {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .gsredina {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .gdesno .gglasnoca {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glazba * {
+    transition: none !important;
+  }
+}
+
+/* ---------- okvir za novi popis ---------- */
+
+.gokvir {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.62);
+  padding: 20px;
+}
+.gkutija {
+  width: min(420px, 100%);
+  background: #1f1f24;
+  border: 1px solid var(--crta);
+  border-radius: 10px;
+  padding: 22px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+}
+.gkutija h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.gkutija label {
+  display: block;
+  font-size: 12px;
+  color: var(--blijedo);
+  margin-bottom: 6px;
+}
+.gkutija input {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--crta);
+  background: #121214;
+  color: var(--tekst);
+  font: inherit;
+  font-size: 15px;
+}
+.gkutija input:focus {
+  outline: none;
+  border-color: var(--zeleno);
+}
+.gkutija .uz {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--blijedo);
+}
+.gkutija .gdno {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+.gkutija .gdno button {
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.gkutija .blijedo {
+  color: var(--blijedo);
+}
+.gkutija .blijedo:hover {
+  color: var(--tekst);
+}
+.gkutija .glavna {
+  background: var(--zeleno);
+  color: #000;
+}
+.gkutija .glavna:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+/* ---------- okvir „Dodaj pjesmu” ---------- */
+
+/* Tipka stoji u gornjoj traci, u praznini desno od trake za traženje. Nosi
+   naziv razreda koji ne ovisi o traci, jer se ista tipka pokazuje i na
+   praznoj zbirci, gdje trake nema. */
+.gdodajtipka {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px 8px 12px;
+  border-radius: 999px;
+  background: var(--ploca);
+  color: var(--tekst);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.gdodajtipka:hover {
+  background: var(--ploca-vis);
+  color: var(--zeleno);
+}
+/* Na užem zaslonu ostaje samo znak, jer traka za traženje ondje uzme sve. */
+@media (max-width: 760px) {
+  .gvrh .gdodajtipka span {
+    display: none;
+  }
+  .gvrh .gdodajtipka {
+    padding: 8px 11px;
+  }
+}
+
+/* Okvir je širi od onoga za novi popis, jer u njemu stoji i popis poslova. */
+.gdploca {
+  width: min(680px, 100%);
+  max-height: min(86vh, 920px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.gdploca .gdglava {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gdploca .gdglava h2 {
+  flex: 1;
+  margin-bottom: 0;
+}
+.gdploca .uz {
+  margin-top: 8px;
+  margin-bottom: 16px;
+}
+
+.gdoznaka {
+  display: block;
+  font-size: 12px;
+  color: var(--blijedo);
+  margin-bottom: 6px;
+}
+.gdpolje {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--crta);
+  background: #121214;
+  color: var(--tekst);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 76px;
+}
+.gdpolje:focus {
+  outline: none;
+  border-color: var(--zeleno);
+}
+.gdmjera {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--blijedo);
+}
+.gdodbijene {
+  margin-top: 6px;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #f2a6ab;
+}
+.gdodbijene code {
+  color: var(--blijedo);
+  font-size: 11.5px;
+}
+.gdkakvoca {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.gdgreska {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: #ff8a90;
+}
+.gdgreska span {
+  color: var(--blijedo);
+}
+
+/* ---------- popis poslova u okviru ---------- */
+
+.gdposlovi {
+  margin-top: 20px;
+  border-top: 1px solid var(--crta);
+  padding-top: 14px;
+}
+.gdvrhpopisa {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.gdvrhpopisa h3 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blijedo);
+}
+.gdveza {
+  font-size: 12px;
+  color: var(--blijedo);
+}
+.gdveza:hover {
+  color: var(--tekst);
+  text-decoration: underline;
+}
+.gdpusti {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--zeleno);
+}
+.gdpusti:hover {
+  color: var(--zeleno);
+}
+.gdposao {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--crta);
+}
+.gdposao:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.gdredaknaslov {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.gdime {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.gdstanje {
+  flex: none;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--blijedo);
+}
+.gdstanje[data-stanje="gotovo"],
+.gdstanje[data-stanje="vec"] {
+  color: var(--zeleno);
+}
+.gdstanje[data-stanje="greska"] {
+  color: #ff8a90;
+}
+.gdsitno {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--blijedo);
+}
+/* Traka napredovanja. Kad posla više nema, nje ni nema u prikazu, pa ne stoji
+   prazna ispod gotova retka. */
+.gdtraka {
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.gdtraka i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--zeleno);
+  transition: width 0.2s ease;
+}
+.gdredakgumbi {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+}
+.gdredakgumbi:empty {
+  display: none;
+}
+.gdalati {
+  margin-top: 16px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.32);
+}
+.gdalati:empty {
+  display: none;
+}

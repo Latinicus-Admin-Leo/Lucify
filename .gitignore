@@ -1,0 +1,31 @@
+# ovisnosti i build
+node_modules
+dist
+dist-ssr
+*.local
+
+# gotova namjenska aplikacija: instalacija je stotinjak megabajta i slaže se
+# iz izvora s `npm run pakiraj`, pa nema što tražiti u gitu. Ikona (`build/`)
+# ostaje, jer se iz nje gradi.
+izdanje
+
+# logovi
+logs
+*.log
+npm-debug.log*
+
+# okolina
+.env
+.env.*
+
+# uredivac i OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
+
+# glazbena zbirka: snimke su tude autorsko djelo i osobne su, pa ne idu na
+# GitHub. Stoje izvan `public/` zato sto Vite sve iz te mape prepisuje u
+# `dist/`, pa bi svaki build kopirao 600 MB uzalud.
+Glazba/Zvuk

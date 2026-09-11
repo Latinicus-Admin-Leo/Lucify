@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Lucify">
+  <circle cx="256" cy="256" r="232" fill="#b83a1b"/>
+  <g fill="none" stroke="#f5a45c" stroke-width="40" stroke-linecap="round">
+    <path d="M264 356A96 96 0 0 0 168 260"/>
+    <path d="M324 356A156 156 0 0 0 168 200"/>
+    <path d="M384 356A216 216 0 0 0 168 140"/>
+  </g>
+  <circle cx="168" cy="356" r="26" fill="#f5a45c"/>
+</svg>

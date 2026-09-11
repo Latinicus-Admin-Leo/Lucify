@@ -1,0 +1,87 @@
+{
+  "name": "lucify",
+  "productName": "Lucify",
+  "description": "Vlastita zbirka glazbe i svirač uz nju.",
+  "author": "Leo Bobinac",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "electron/glavni.mjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --quiet",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc -p ./jsconfig.json",
+    "glazba": "node scripts/glazba.mjs",
+    "ikona": "electron scripts/ikona.mjs",
+    "build:namjenska": "vite build --mode namjenska",
+    "namjenska": "npm run build:namjenska && electron .",
+    "pakiraj": "npm run build:namjenska && electron-builder --win"
+  },
+  "dependencies": {
+    "lucide-react": "^0.475.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "eslint": "^9.19.0",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.18",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^15.14.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.1.0"
+  },
+  "optionalDependencies": {
+    "ffmpeg-static": "^5.3.0"
+  },
+  "build": {
+    "appId": "hr.lucify.svirac",
+    "productName": "Lucify",
+    "directories": {
+      "output": "izdanje",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "scripts/**",
+      "src/glazba-veze.mjs",
+      "build/icon.png",
+      "package.json",
+      "!node_modules/react/**",
+      "!node_modules/react-dom/**",
+      "!node_modules/lucide-react/**",
+      "!node_modules/scheduler/**"
+    ],
+    "asarUnpack": [
+      "**/node_modules/ffmpeg-static/**"
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Lucify-${version}-instalacija.${ext}",
+      "shortcutName": "Lucify"
+    },
+    "portable": {
+      "artifactName": "Lucify-${version}-prijenosni.${ext}"
+    }
+  }
+}
