@@ -717,7 +717,10 @@
   display: grid;
   place-items: center;
 }
+/* Srce se u tablici otkriva prelaskom preko retka. U traci sviraca retka
+   nema, pa bi ondje ostalo nevidljivo dok pjesma nije vec oznacena. */
 .gredak:hover .gsrce,
+.gsada .gsrce,
 .gsrce.puno {
   opacity: 1;
 }
@@ -1071,6 +1074,23 @@
   color: var(--tekst);
   overflow-wrap: anywhere;
 }
+/* Ista poruka, ali unutar popisa, a ne preko cijeloga zaslona: zato manji
+   razmak odozgo i tipka koja ne visi ulijevo. */
+.gpraznozbirka {
+  margin: 7vh auto;
+}
+/* Dvije tipke jedna uz drugu, u sredini, jer je poruka ionako centrirana. */
+.gpraznotipke {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gpraznozbirka .gdodajtipka {
+  background: var(--ploca-vis);
+  border: 1px solid var(--crta);
+  margin-top: 4px;
+}
 .gprazno {
   padding: 40px 28px;
   color: var(--blijedo);
@@ -1257,6 +1277,11 @@
   font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
+}
+/* Ista tipka zna biti i poveznica: ona na izdanje vodi izvan stranice, pa je
+   <a>, a ne <button>. */
+a.gdodajtipka {
+  text-decoration: none;
 }
 .gdodajtipka:hover {
   background: var(--ploca-vis);
@@ -1458,4 +1483,458 @@
 }
 .gdalati:empty {
   display: none;
+}
+
+/* ---------- okvir „Poveznice” ---------- */
+
+/* Širina je ista kao u okviru za dodavanje, jer u oba stoji polje s tekstom
+   preko cijele širine, a dva različito široka okvira u istoj traci vide se
+   kao pogreška. */
+.gpploca {
+  width: min(680px, 100%);
+  max-height: min(86vh, 920px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.gpploca .gdglava {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gpploca .gdglava h2 {
+  flex: 1;
+  margin-bottom: 0;
+}
+.gpploca .uz {
+  margin-top: 8px;
+  margin-bottom: 16px;
+}
+
+.gpprazno {
+  font-size: 13px;
+  color: var(--blijedo);
+  padding: 18px 0 6px;
+}
+
+.gpbroj {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--blijedo);
+  margin-bottom: 7px;
+}
+.gpbroj b {
+  color: var(--tekst);
+  font-weight: 600;
+}
+.gpstr {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.gpbrojstr {
+  padding: 0 3px;
+}
+/* Strelice stoje uz sam broj stranice, jer se ondje i gleda dokle se stiglo.
+   Manje su od običnoga kruga: uz redak od 12.5px onaj od 36px izgledao bi kao
+   tipka iz nekoga drugog okvira. */
+.gplist {
+  width: 26px;
+  height: 26px;
+}
+.gplist:disabled:hover {
+  background: none;
+  color: var(--blijedo);
+}
+
+/* Poveznice se ne prelamaju: redak mora ostati jedna adresa, da se u prijepisu
+   ne razlomi na dvije. Zato polje ima vodoravno klizanje, a ne `wrap`. */
+.gppolje {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--crta);
+  background: #121214;
+  color: var(--tekst);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  resize: vertical;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+.gppolje:focus {
+  outline: none;
+  border-color: var(--zeleno);
+}
+
+/* Naslovi su tu zato da se vidi što je u hrpici, pa stoje sitno i u dva stupca
+   ondje gdje za dva ima mjesta. Brojevi teku kroz cijelu zbirku, a ne od jedan
+   po hrpici, jer kazuju dokle se stiglo. */
+.gpnaslovi {
+  margin: 14px 0 0;
+  padding-left: 30px;
+  max-height: 190px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 12.5px;
+  color: var(--blijedo);
+}
+.gpnaslovi li {
+  padding: 2px 0;
+}
+.gpnaslovi li::marker {
+  color: rgba(255, 255, 255, 0.3);
+  font-variant-numeric: tabular-nums;
+}
+.gpn {
+  color: var(--tekst);
+}
+.gpi::before {
+  content: " · ";
+  color: rgba(255, 255, 255, 0.28);
+}
+@media (min-width: 620px) {
+  .gpnaslovi {
+    columns: 2;
+    column-gap: 26px;
+  }
+  .gpnaslovi li {
+    break-inside: avoid;
+  }
+}
+
+.gpno {
+  display: flex;
+  align-items: center;
+  margin-top: 18px;
+}
+/* Listanje je otišlo gore, uz broj stranice, pa je kopiranje jedino što je u
+   ovom redu ostalo. */
+.gpkopiraj {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+/* ---------- mobitel ---------- */
+
+/* Tri dijela postoje samo na mobitelu: donja traka, vrh otvorenoga svirača i
+   nevidljiva tipka kojom se svirač otvara. Na stolnom računalu svirač stalno
+   stoji u traci pri dnu, pa se nema što ni otvarati ni zatvarati. */
+.gtraka,
+.gpunivrh,
+.gotvorisvirac {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  /* --- zaglavlje popisa --- */
+  /* Omot ide u sredinu i naraste, kao u glazbenim programima na telefonu:
+     ondje je slika popisa glavni znak, a ne ukras uz naslov. */
+  .gzaglavlje {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 16px;
+    padding: 16px 18px 14px;
+  }
+  .gzaglavlje .gomot {
+    width: min(62vw, 250px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  }
+  .gnatpisi {
+    width: 100%;
+    padding-bottom: 0;
+  }
+  /* Natpis „POPIS” iznad naslova na uskom je zaslonu samo buka: što je pred
+     tobom vidi se po samom popisu. */
+  .gnatpisi .vrsta {
+    display: none;
+  }
+  .gnatpisi h1 {
+    font-size: 27px;
+  }
+  .gnatpisi .mjere {
+    justify-content: center;
+  }
+
+  /* --- alatke: zeleno puštanje uz desni rub --- */
+  .galatke {
+    padding: 2px 16px 10px;
+    gap: 10px;
+  }
+  .galatke > .gikona {
+    order: 8;
+    margin-left: auto;
+  }
+  .galatke > .gpusti {
+    order: 9;
+    width: 50px;
+    height: 50px;
+  }
+  .gmjerac {
+    order: 1;
+  }
+
+  /* --- svirač kao kartica nad donjom trakom --- */
+  /* `display: contents` na sredini: tipke i crta postaju izravna polja
+     kartice, pa crta može leći preko cijele širine ispod njih, a da se sam
+     JSX ne mijenja zbog izgleda. */
+  .gsvirac {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "sada tipke"
+      "crta crta";
+    gap: 0 8px;
+    margin: 0 8px 6px;
+    padding: 7px 10px 5px;
+    background: var(--ploca-vis);
+    border-radius: 8px;
+  }
+  .gsredina {
+    display: contents;
+  }
+  .gsada {
+    grid-area: sada;
+  }
+  .gtipke {
+    grid-area: tipke;
+  }
+  .gcrta {
+    grid-area: crta;
+  }
+  .gdesno {
+    display: none;
+  }
+
+  /* Tipka koja otvara svirač pokriva omot i natpis, ali staje prije srca i
+     puštanja, da ona ostanu svoja. */
+  .gsvirac:not(.puni) .gotvorisvirac {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    right: 92px;
+    z-index: 3;
+    border-radius: 8px;
+  }
+  .gsvirac:not(.puni) .gsada .gomot {
+    width: 40px;
+    border-radius: 4px;
+  }
+  .gsvirac:not(.puni) .gsada b {
+    font-size: 13px;
+  }
+  .gsvirac:not(.puni) .gsada .tekst span {
+    font-size: 11.5px;
+  }
+  /* U kartici stoji samo puštanje: za preskakanje se svirač otvori. */
+  .gsvirac:not(.puni) .gtipke .gikona {
+    display: none;
+  }
+  .gsvirac:not(.puni) .gtipke {
+    gap: 0;
+  }
+  .gsvirac:not(.puni) .gsvira {
+    width: 34px;
+    height: 34px;
+    background: none;
+    color: var(--tekst);
+  }
+  .gsvirac:not(.puni) .gsvira svg {
+    width: 21px;
+    height: 21px;
+  }
+  /* Crta u kartici samo pokazuje dokle se stiglo; premotava se u otvorenom
+     sviraču, gdje za prst ima mjesta. */
+  .gsvirac:not(.puni) .gcrta {
+    gap: 0;
+    max-width: none;
+    margin-top: 3px;
+  }
+  .gsvirac:not(.puni) .gcrta span {
+    display: none;
+  }
+  .gsvirac:not(.puni) .gklizac {
+    height: 3px;
+    pointer-events: none;
+  }
+
+  /* --- otvoreni svirač preko cijeloga zaslona --- */
+  .gsvirac.puni {
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "sada"
+      "crta"
+      "tipke";
+    align-content: center;
+    gap: 0;
+    margin: 0;
+    padding: 14px 24px calc(26px + env(safe-area-inset-bottom));
+    border-radius: 0;
+    background: linear-gradient(180deg, hsl(var(--ton) 42% 30%), var(--pod) 66%);
+  }
+  /* Vrh stoji izvan mreze, pri samom rubu: apsolutni element unutar polja
+     mreze racunao bi se od toga polja, pa bi natpis pao preko omota. */
+  .gsvirac.puni .gpunivrh {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    top: 10px;
+    left: 14px;
+    right: 14px;
+  }
+  .gpunislog {
+    flex: 1;
+    text-align: center;
+    margin-right: 36px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+  }
+  /* Omot, natpis i srce: slika preko cijele širine, a ispod nje naslov s
+     izvođačem i srce uz desni rub. */
+  .gsvirac.puni .gsada {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "omot omot"
+      "tekst srce";
+    align-items: center;
+    gap: 26px 12px;
+  }
+  .gsvirac.puni .gsada .gomot {
+    grid-area: omot;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    box-shadow: 0 18px 54px rgba(0, 0, 0, 0.55);
+  }
+  .gsvirac.puni .gsada .tekst {
+    grid-area: tekst;
+  }
+  .gsvirac.puni .gsada .gsrce {
+    grid-area: srce;
+  }
+  .gsvirac.puni .gsada .gsrce svg {
+    width: 24px;
+    height: 24px;
+  }
+  .gsvirac.puni .gsada b {
+    font-size: 22px;
+    font-weight: 700;
+    white-space: normal;
+  }
+  .gsvirac.puni .gsada .tekst span {
+    font-size: 15px;
+    white-space: normal;
+  }
+  /* Vrijeme ide pod crtu, lijevo proteklo a desno ukupno. */
+  .gsvirac.puni .gcrta {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-areas:
+      "klizac klizac"
+      "proslo ukupno";
+    justify-content: space-between;
+    max-width: none;
+    margin-top: 26px;
+  }
+  .gsvirac.puni .gcrta .gklizac {
+    grid-area: klizac;
+    height: 16px;
+  }
+  .gsvirac.puni .gcrta span:first-child {
+    grid-area: proslo;
+  }
+  .gsvirac.puni .gcrta span:last-child {
+    grid-area: ukupno;
+  }
+  /* Na dodir nema prelaska mišem, pa bi ručica ostala nevidljiva. */
+  .gsvirac.puni .gklizac::-webkit-slider-thumb {
+    opacity: 1;
+  }
+  .gsvirac.puni .gklizac::-moz-range-thumb {
+    opacity: 1;
+  }
+  .gsvirac.puni .gtipke {
+    justify-content: space-between;
+    gap: 0;
+    margin-top: 22px;
+  }
+  .gsvirac.puni .gtipke .gikona svg {
+    width: 25px;
+    height: 25px;
+  }
+  .gsvirac.puni .gsvira {
+    width: 64px;
+    height: 64px;
+  }
+  .gsvirac.puni .gsvira svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* Prazan svirac ne treba kartice: dok nista ne svira, mjesto pripada
+     popisu. Na stolnom racunalu traka ostaje, jer ondje drzi i glasnocu. */
+  .gsvirac.prazan {
+    display: none;
+  }
+
+  /* Zbirka i ploca sa strane sada stoje u donjoj traci, pa im u gornjoj nema
+     smisla stajati jos jednom: uska traka time dobiva mjesto za trazilicu. */
+  .gvrh .zbirkatipka,
+  .gvrh .gplocatipka {
+    display: none;
+  }
+
+  /* Zaglavlje tablice gubi „Dodano” zajedno s istim stupcem u redcima. */
+  .gredak .gporedaj.dodano {
+    display: none;
+  }
+
+  /* Na dodir nema prelaska misem, pa bi srce i „vise” u redcima ostali
+     nevidljivi: ono sto se na racunalu otkriva rukom, ovdje stoji odmah. */
+  .gredak .gsrce,
+  .gredak .gvise {
+    opacity: 1;
+  }
+
+  /* --- donja traka --- */
+  .gtraka {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    background: var(--pod);
+    border-top: 1px solid var(--crta);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .gtrakatipka {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 7px 0 8px;
+    color: var(--blijedo);
+    font-size: 10.5px;
+    font-weight: 500;
+  }
+  .gtrakatipka.on {
+    color: var(--tekst);
+  }
 }

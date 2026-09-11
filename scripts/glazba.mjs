@@ -102,9 +102,19 @@ if (uvozIz) {
   r.greske.forEach((g) => console.log("  ⚠ " + g));
 }
 
-const { popis, greske, sOmotom, sYt } = await slozi(root, { bezOmota });
+const { popis, greske, sOmotom, sYt, veze } = await slozi(root, { bezOmota });
 greske.forEach((g) => console.log("  ⚠ " + g));
 if (!bezOmota) console.log("Omoti: " + sOmotom + " od " + sYt);
+
+/* Popis adresa (`public/poveznice.json`) piše sama `slozi`, uz popis zbirke,
+   pa ga ovdje treba samo prebrojiti. Pjesma bez oznake snimke u njega ne ulazi:
+   nju u zbirku nije donio YouTube, pa za nju poveznice ni nema. */
+if (veze >= 0) {
+  const bez = popis.pjesme.length - veze;
+  console.log(
+    "Poveznice: " + veze + " u public/poveznice.json" + (bez ? " (" + bez + " bez oznake snimke)" : ""),
+  );
+}
 
 const ukupno = popis.pjesme.reduce((s, p) => s + p.trajanje, 0);
 console.log(

@@ -28,6 +28,19 @@ const DOMENE = new Set([
 const OBLICI = ["/shorts/", "/live/", "/embed/", "/v/"];
 
 /**
+ * Puna adresa snimke iz njezine oznake.
+ *
+ * Stoji na jednom mjestu, jer je traže troje: presuda o zalijepljenoj
+ * poveznici, popis poveznica u Lucifyju i `npm run glazba`, koji taj popis
+ * zapisuje. Dvije bi se kopije razišle čim YouTube promijeni oblik adrese.
+ *
+ * @param {string} oznaka
+ */
+export function adresaSnimke(oznaka) {
+  return "https://www.youtube.com/watch?v=" + oznaka;
+}
+
+/**
  * Presuda o jednoj poveznici. Zapisana je kao jedan oblik s neobaveznim
  * poljima, a ne kao dva odvojena, jer se ova mapa provjerava bez `strict`, pa
  * TypeScript ondje ne umije suziti oblik po polju `ok`.
@@ -41,7 +54,7 @@ const OBLICI = ["/shorts/", "/live/", "/embed/", "/v/"];
  */
 function prihvati(oznaka) {
   if (!OZNAKA.test(oznaka)) return { ok: false, razlog: "Oznaka snimke u toj poveznici ne valja." };
-  return { ok: true, oznaka, adresa: "https://www.youtube.com/watch?v=" + oznaka };
+  return { ok: true, oznaka, adresa: adresaSnimke(oznaka) };
 }
 
 /**

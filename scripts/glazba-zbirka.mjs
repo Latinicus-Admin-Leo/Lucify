@@ -15,6 +15,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { adresaSnimke } from "../src/glazba-veze.mjs";
 
 /* ---------- ID3v2, samo ono što nam treba ---------- */
 
@@ -421,6 +422,39 @@ export function zapisi(popisPut, pjesme) {
 }
 
 /**
+ * Uz popis se zapisuje i `public/poveznice.json`: zbirka svedena na same
+ * YouTube adrese, bez ijednog bajta zvuka. Ta datoteka **smije** u git, jer
+ * adresa nije snimka, pa preko nje zbirka stigne i na objavljenu stranicu,
+ * gdje glazbe nema i neće je biti.
+ *
+ * Piše se pri svakom slaganju popisa, dakle i kad Lucify preuzme jednu jedinu
+ * pjesmu, da popis adresa ne zaostaje za zbirkom.
+ *
+ * Mape `public/` u namjenskoj aplikaciji nema: ondje zbirka stoji u mapi koju
+ * je čovjek odabrao, a projekta nema. Zato se ondje ne zapisuje ništa, da se
+ * usred tuđe mape s glazbom ne stvara prazna mapa projekta.
+ *
+ * @param {string} korijen
+ * @param {any[]} pjesme
+ * @returns {number} koliko ih je zapisano, ili -1 ako mape `public/` nema
+ */
+export function zapisiPoveznice(korijen, pjesme) {
+  const mapa = join(korijen, "public");
+  if (!existsSync(mapa)) return -1;
+  const sVezom = pjesme.filter((p) => p.yt);
+  const sadrzaj = {
+    gradeno: new Date().toISOString(),
+    pjesme: sVezom.map((p) => ({
+      naslov: p.naslov,
+      izvodac: p.izvodac,
+      adresa: adresaSnimke(p.yt),
+    })),
+  };
+  writeFileSync(join(mapa, "poveznice.json"), JSON.stringify(sadrzaj, null, 1) + "\n", "utf8");
+  return sVezom.length;
+}
+
+/**
  * Cijela zbirka iznova: pročita svaku snimku u mapi i složi popis.
  *
  * @param {string} korijen
@@ -453,7 +487,8 @@ export async function slozi(korijen, opcije = {}) {
   }
 
   const popis = zapisi(popisPut, pjesme);
-  return { popis, greske, sOmotom, sYt: pjesme.filter((p) => p.yt).length };
+  const veze = zapisiPoveznice(korijen, pjesme);
+  return { popis, greske, sOmotom, sYt: pjesme.filter((p) => p.yt).length, veze };
 }
 
 /**
@@ -484,5 +519,7 @@ export async function dodajUPopis(korijen, ime, yt) {
   const pjesme = Object.values(prije).filter((p) => p.id !== id);
   pjesme.push(nova);
   zapisi(popisPut, pjesme);
+  /* I popis adresa, da nova pjesma odmah stigne i na objavljenu stranicu. */
+  zapisiPoveznice(korijen, pjesme);
   return nova;
 }

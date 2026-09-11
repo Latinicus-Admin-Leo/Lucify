@@ -10,11 +10,14 @@ import {
 import {
   ChevronDown,
   Clock,
+  Disc3,
+  Download,
   Heart,
+  Library,
   ListPlus,
+  Link2,
   ListMusic,
   MoreHorizontal,
-  Music2,
   PanelRight,
   Pause,
   Play,
@@ -46,6 +49,13 @@ import "./glazba.css";
 const NAMJENSKA = import.meta.env.MODE === "namjenska";
 const PREUZIMAC = import.meta.env.DEV || NAMJENSKA;
 
+/* Namjenska aplikacija za Windows. Sam program ne može stajati uz objavljenu
+   stranicu: instalacija je stotinjak megabajta, a Vercel na besplatnom računu
+   prima najviše sto, pa `izdanje/` nije ni u gitu. Izdanja zato stoje na
+   GitHubu, gdje te granice nema, a odavde vodi samo poveznica. Gradi se s
+   `npm run pakiraj`, a objavljuje kao GitHub Release. */
+const IZDANJA = "https://github.com/Latinicus-Admin-Leo/Lucify/releases/latest";
+
 /* Uvoz stoji iza te provjere, a ne samo prikaz, jer Vite i `import.meta.env.DEV`
    i `import.meta.env.MODE` u buildu zamijeni doslovnim vrijednostima, pa u
    objavljenom buildu cijela grana i s njom sam `import()` ispadnu van. Tako se
@@ -55,6 +65,11 @@ const PREUZIMAC = import.meta.env.DEV || NAMJENSKA;
 const Dodaj = /** @type {any} */ (
   PREUZIMAC ? lazy(() => import("./GlazbaDodaj.jsx")) : null
 );
+
+/* Okvir s poveznicama, za razliku od onoga za dodavanje, stoji i na
+   objavljenoj stranici. Ondje je on jedino što od zbirke ostaje: glazbe
+   nema, ali popis onoga što u njoj stoji stigne i na mobitel. */
+const Poveznice = lazy(() => import("./GlazbaPoveznice.jsx"));
 
 /**
  * Lucify: zbirka snimaka i svirač, u izgledu posuđenom od glazbenih
@@ -210,7 +225,7 @@ function Klizac({ vrijednost, najvise, naPromjenu, oznaka, razred, korak }) {
 
 export default function Glazba() {
   const [zbirka, setZbirka] = useState(/** @type {any} */ (null));
-  const [stanje, setStanje] = useState("ucitavam");
+  const [ucitavam, setUcitavam] = useState(true);
 
   const [srca, setSrca] = useState(/** @type {() => string[]} */ (() => ucitaj(KLJUC_SRCA, [])));
   const [liste, setListe] = useState(
@@ -249,6 +264,11 @@ export default function Glazba() {
   );
   const [zbirkaOtvorena, setZbirkaOtvorena] = useState(false);
   const [dodajOtvoren, setDodajOtvoren] = useState(false);
+  const [vezeOtvorene, setVezeOtvorene] = useState(false);
+  /* Na mobitelu je svirač skupljen u karticu nad donjom trakom, a dodirom se
+     otvara preko cijeloga zaslona. Na stolnom računalu te razlike nema: ondje
+     svirač uvijek stoji u traci pri dnu, pa se ovo stanje ne koristi. */
+  const [puniSvirac, setPuniSvirac] = useState(false);
   const [jelovnik, setJelovnik] = useState(/** @type {any} */ (null));
   /* Kad se otvara novi popis, ovdje stoji ono što u njega odmah ide. */
   const [noviPopisZa, setNoviPopisZa] = useState(/** @type {string[] | null} */ (null));
@@ -267,9 +287,9 @@ export default function Glazba() {
              datoteka ni koja je sljedeća. Odatle se vraća i zadnja pjesma iz
              prošloga posjeta, jer se tek s popisom zna koja je. */
           svirac.postaviZbirku((p && p.pjesme) || []);
-          setStanje(p && p.pjesme && p.pjesme.length ? "gotovo" : "prazno");
+          setUcitavam(false);
         })
-        .catch(() => setStanje("prazno")),
+        .catch(() => setUcitavam(false)),
     [],
   );
 
@@ -429,6 +449,28 @@ export default function Glazba() {
     };
   }, [mjeracOtvoren]);
 
+  /* Otvoren svirač na mobitelu pokriva cijeli zaslon, pa se zatvara i tipkom
+     natrag na uređaju, a ne samo strelicom dolje. Zapis u povijesti je lažan:
+     ne mijenja adresu, nego samo daje toj tipki što zatvoriti. */
+  useEffect(() => {
+    if (!puniSvirac) return undefined;
+    /** @param {KeyboardEvent} e */
+    const naTipku = (e) => {
+      if (e.key === "Escape") setPuniSvirac(false);
+    };
+    const naNatrag = () => setPuniSvirac(false);
+    window.history.pushState({ svirac: true }, "");
+    window.addEventListener("popstate", naNatrag);
+    document.addEventListener("keydown", naTipku);
+    return () => {
+      window.removeEventListener("popstate", naNatrag);
+      document.removeEventListener("keydown", naTipku);
+      /* Ako se svirač zatvorio strelicom, lažni zapis treba maknuti sam, da
+         tipka natrag ne troši jedan pritisak na prazno. */
+      if (window.history.state && window.history.state.svirac) window.history.back();
+    };
+  }, [puniSvirac]);
+
   /** Novo odbrojavanje. @param {number} minuta */
   const postaviMjerac = useCallback((minuta) => {
     svirac.postaviMjerac(minuta);
@@ -487,12 +529,19 @@ export default function Glazba() {
       </Suspense>
     ) : null;
 
+  const okvirVeze = vezeOtvorene ? (
+    <Suspense fallback={null}>
+      <Poveznice pjesme={sve} naZatvori={() => setVezeOtvorene(false)} />
+    </Suspense>
+  ) : null;
+
   /** Tipka koja taj okvir otvara. @param {string} [razred] */
   const tipkaDodaj = (razred) =>
     PREUZIMAC ? (
       <button
         type="button"
         className={"gdodajtipka" + (razred ? " " + razred : "")}
+        aria-label="Dodaj pjesmu"
         onClick={() => setDodajOtvoren(true)}
       >
         <ListPlus size={17} aria-hidden="true" />
@@ -500,7 +549,7 @@ export default function Glazba() {
       </button>
     ) : null;
 
-  if (stanje === "ucitavam") {
+  if (ucitavam) {
     return (
       <div className="glazba">
         <div />
@@ -509,49 +558,7 @@ export default function Glazba() {
         </div>
         <div />
         {okvirDodaj}
-      </div>
-    );
-  }
-
-  if (stanje === "prazno") {
-    return (
-      <div className="glazba">
-        <div />
-        <div className="gporuka">
-          <Music2 size={40} aria-hidden="true" />
-          <h2>Zbirka je prazna</h2>
-          {NAMJENSKA ? (
-            <>
-              <p>
-                Snimke stoje u mapi zbirke, koja se otvara iz jelovnika:{" "}
-                <b>Lucify &rarr; Otvori mapu zbirke</b>. Ondje se mogu i samo prekopirati,
-                a Lucify ih pokupi pri idućem otvaranju.
-              </p>
-              <p>Najlakše ide ovako, poveznicom s YouTubea:</p>
-              {tipkaDodaj()}
-            </>
-          ) : (
-            <>
-              <p>
-                Snimke stoje u <code>Glazba/Zvuk/</code>, a ta mapa nije u gitu, jer je glazba
-                tuđe autorsko djelo. Zato je na objavljenoj stranici nema, nego samo na vlastitom
-                računalu, uz <code>npm run dev</code>.
-              </p>
-              <p>Nove snimke ulaze u zbirku ovako:</p>
-              <p>
-                <code>npm run glazba -- --uvezi &quot;putanja/do/mape&quot;</code>
-              </p>
-              {PREUZIMAC ? (
-                <>
-                  <p>Ili jednu po jednu, poveznicom s YouTubea:</p>
-                  {tipkaDodaj()}
-                </>
-              ) : null}
-            </>
-          )}
-        </div>
-        <div />
-        {okvirDodaj}
+        {okvirVeze}
       </div>
     );
   }
@@ -622,10 +629,35 @@ export default function Glazba() {
           />
         </label>
         <div className="desno">
-          {tipkaDodaj()}
           <button
             type="button"
-            className="gikona"
+            className="gdodajtipka"
+            aria-label="Poveznice"
+            onClick={() => setVezeOtvorene(true)}
+          >
+            <Link2 size={17} aria-hidden="true" />
+            <span>Poveznice</span>
+          </button>
+          {tipkaDodaj()}
+          {/* Samo na objavljenoj stranici: ondje se glazba ne može ni preuzeti
+              ni slušati, pa je namjenska aplikacija jedino čime se ta stranica
+              pretvara u svirač. Tko je već u njoj, ili na `npm run dev`, nema
+              što preuzimati. */}
+          {!PREUZIMAC ? (
+            <a
+              className="gdodajtipka"
+              href={IZDANJA}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Lucify za računalo"
+            >
+              <Download size={17} aria-hidden="true" />
+              <span>Za računalo</span>
+            </a>
+          ) : null}
+          <button
+            type="button"
+            className="gikona gplocatipka"
             aria-pressed={panel}
             aria-label="Ploča sa strane"
             onClick={() => setPanel((v) => !v)}
@@ -890,7 +922,7 @@ export default function Glazba() {
               <span className="gbroj">#</span>
               {zaglavlje("naslov", "Naslov")}
               <span className="stupac">Razdoblje i izvor</span>
-              {zaglavlje("dodano", "Dodano")}
+              {zaglavlje("dodano", "Dodano", "dodano")}
               {zaglavlje("trajanje", "Trajanje", "kraj")}
             </div>
 
@@ -903,6 +935,19 @@ export default function Glazba() {
                     "gredak pjesma" + (jeSada ? " sada" : "") + (jeSada && svira ? " gtece" : "")
                   }
                   onDoubleClick={() => pusti(prikazane.map((x) => x.id), i)}
+                  /* Na dodir dvostrukoga klika nema, pa redak ondje pušta
+                     jednim dodirom, kako to na telefonu i inače ide. Pitamo
+                     `hover: none`, a ne širinu zaslona: dodir je ono što ovdje
+                     doista odlučuje. Dodir na tipku ili poveznicu u retku
+                     ostaje njihov, da srce i izbornik rade svoje. */
+                  onClick={(e) => {
+                    if (!window.matchMedia("(hover: none)").matches) return;
+                    if (/** @type {HTMLElement} */ (e.target).closest("button, a")) return;
+                    pusti(
+                      prikazane.map((x) => x.id),
+                      i,
+                    );
+                  }}
                 >
                   <button
                     type="button"
@@ -992,9 +1037,68 @@ export default function Glazba() {
             })}
 
             {prikazane.length === 0 ? (
-              <p className="gprazno">
-                {trazi.trim() ? "Ništa za „" + trazi.trim() + "”." : "U ovom popisu još nema ničega."}
-              </p>
+              trazi.trim() ? (
+                <p className="gprazno">{"Ništa za „" + trazi.trim() + "”."}</p>
+              ) : sve.length ? (
+                <p className="gprazno">U ovom popisu još nema ničega.</p>
+              ) : (
+                /* Prazna zbirka objašnjava se ovdje, unutar popisa, a ne preko
+                   cijeloga zaslona: gornja traka mora ostati vidljiva, jer na
+                   objavljenoj stranici u njoj stoje „Poveznice”, a one su ondje
+                   jedino što je od zbirke ostalo. */
+                <div className="gporuka gpraznozbirka">
+                  {NAMJENSKA ? (
+                    <>
+                      <p>
+                        Zbirka je prazna. Snimke stoje u mapi zbirke, koja se otvara iz
+                        jelovnika: <b>Lucify &rarr; Otvori mapu zbirke</b>. Ondje se mogu i
+                        samo prekopirati, a Lucify ih pokupi pri idućem otvaranju.
+                      </p>
+                      <p>
+                        Najlakše ide poveznicom s YouTubea, tipkom <b>Dodaj pjesmu</b> gore.
+                      </p>
+                    </>
+                  ) : PREUZIMAC ? (
+                    <>
+                      <p>
+                        Zbirka je prazna. Snimke stoje u <code>Glazba/Zvuk/</code>, a ta mapa
+                        nije u gitu, jer je glazba tuđe autorsko djelo.
+                      </p>
+                      <p>
+                        <code>npm run glazba -- --uvezi &quot;putanja/do/mape&quot;</code>
+                      </p>
+                      <p>Ili jednu po jednu, tipkom <b>Dodaj pjesmu</b> gore.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>
+                        Ovdje glazbe nema i neće je biti: snimke su tuđe autorsko djelo, pa ne
+                        idu ni u git ni na objavljenu stranicu. Sluša se na vlastitom računalu,
+                        uz <code>npm run dev</code>.
+                      </p>
+                      <p>
+                        Ostale su adrese: pod <b>Poveznice</b> stoji cijela zbirka kao popis
+                        YouTube poveznica, da se može posložiti i na mobitelu. Za slušanje
+                        same zbirke tu je Lucify za računalo.
+                      </p>
+                      <p className="gpraznotipke">
+                        <button
+                          type="button"
+                          className="gdodajtipka"
+                          onClick={() => setVezeOtvorene(true)}
+                        >
+                          <Link2 size={17} aria-hidden="true" />
+                          <span>Otvori poveznice</span>
+                        </button>
+                        <a className="gdodajtipka" href={IZDANJA} target="_blank" rel="noreferrer">
+                          <Download size={17} aria-hidden="true" />
+                          <span>Lucify za računalo</span>
+                        </a>
+                      </p>
+                    </>
+                  )}
+                </div>
+              )
             ) : null}
           </div>
         </main>
@@ -1069,7 +1173,34 @@ export default function Glazba() {
         ) : null}
       </div>
 
-      <div className="gsvirac">
+      <div
+        className={"gsvirac" + (puniSvirac ? " puni" : "") + (sada ? "" : " prazan")}
+        style={stil({ "--ton": sada ? ton(sada.naslov) : 210 })}
+      >
+        {/* Samo na mobitelu: kartica se dodiruje da se svirač otvori preko
+            cijeloga zaslona. Tipka pokriva omot i natpis, ali ne i srce ni
+            puštanje — oni nad njom imaju svoj sloj. */}
+        {sada ? (
+          <button
+            type="button"
+            className="gotvorisvirac"
+            aria-label="Otvori svirač"
+            onClick={() => setPuniSvirac(true)}
+          />
+        ) : null}
+
+        <div className="gpunivrh">
+          <button
+            type="button"
+            className="gikona gspusti"
+            aria-label="Zatvori svirač"
+            onClick={() => setPuniSvirac(false)}
+          >
+            <ChevronDown size={24} aria-hidden="true" />
+          </button>
+          <span className="gpunislog">Sad svira</span>
+        </div>
+
         <div className="gsada">
           {sada ? (
             <>
@@ -1192,6 +1323,50 @@ export default function Glazba() {
         </div>
       </div>
 
+      {/* Donja traka postoji samo na mobitelu, gdje se za zbirku i svirač
+          nema gdje drugdje uhvatiti: zbirka je ondje ladica, a svirač kartica.
+          Tri odredišta su tri stvari koje Lucify doista ima, pa traka ne
+          obećava sobe kojih nema. */}
+      <nav className="gtraka" aria-label="Glavno kretanje">
+        <button
+          type="button"
+          className={"gtrakatipka" + (zbirkaOtvorena ? " on" : "")}
+          aria-current={zbirkaOtvorena ? "page" : undefined}
+          onClick={() => {
+            setPuniSvirac(false);
+            setZbirkaOtvorena(true);
+          }}
+        >
+          <Library size={21} aria-hidden="true" />
+          <span>Zbirka</span>
+        </button>
+        <button
+          type="button"
+          className={"gtrakatipka" + (!zbirkaOtvorena && !puniSvirac ? " on" : "")}
+          aria-current={!zbirkaOtvorena && !puniSvirac ? "page" : undefined}
+          onClick={() => {
+            setPuniSvirac(false);
+            setZbirkaOtvorena(false);
+          }}
+        >
+          <ListMusic size={21} aria-hidden="true" />
+          <span>Popis</span>
+        </button>
+        <button
+          type="button"
+          className={"gtrakatipka" + (puniSvirac ? " on" : "")}
+          aria-current={puniSvirac ? "page" : undefined}
+          disabled={!sada}
+          onClick={() => {
+            setZbirkaOtvorena(false);
+            setPuniSvirac(true);
+          }}
+        >
+          <Disc3 size={21} aria-hidden="true" />
+          <span>Sad svira</span>
+        </button>
+      </nav>
+
       {noviPopisZa !== null ? (
         <div className="gokvir" onClick={() => setNoviPopisZa(null)}>
           <form
@@ -1230,6 +1405,7 @@ export default function Glazba() {
       ) : null}
 
       {okvirDodaj}
+      {okvirVeze}
 
       {jelovnik ? (
         <div
