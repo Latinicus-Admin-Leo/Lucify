@@ -18,7 +18,8 @@
     "ikona": "electron scripts/ikona.mjs",
     "build:namjenska": "vite build --mode namjenska",
     "namjenska": "npm run build:namjenska && electron .",
-    "pakiraj": "npm run build:namjenska && electron-builder --win"
+    "alati": "node scripts/alati.mjs",
+    "pakiraj": "npm run alati && npm run build:namjenska && electron-builder --win"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",
@@ -56,6 +57,7 @@
       "electron/**",
       "scripts/**",
       "src/glazba-veze.mjs",
+      "alati/**",
       "build/icon.png",
       "package.json",
       "!node_modules/react/**",
@@ -64,7 +66,8 @@
       "!node_modules/scheduler/**"
     ],
     "asarUnpack": [
-      "**/node_modules/ffmpeg-static/**"
+      "**/node_modules/ffmpeg-static/**",
+      "alati/**"
     ],
     "win": {
       "icon": "build/icon.png",

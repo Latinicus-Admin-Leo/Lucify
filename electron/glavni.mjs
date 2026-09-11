@@ -68,6 +68,27 @@ function pripremiFfmpeg() {
   }
 }
 
+/**
+ * yt-dlp isto dolazi s programom, ali kroz mapu `alati/`, jer za nj npm paketa
+ * nema. Vrijedi i ovdje ono što i za ffmpeg: iz `.asar` arhive se program ne
+ * da pokrenuti, pa ga graditelj ostavi u `app.asar.unpacked`. Preuzimač ga
+ * nađe kroz `YTDLP_PATH`, koji mu je prvi na popisu.
+ *
+ * Imena se ne računaju nego se redom isprobavaju: tako se ovaj popis i onaj u
+ * `scripts/alati.mjs` ne mogu razići.
+ */
+function pripremiYtDlp() {
+  if (process.env.YTDLP_PATH) return;
+  const mapa = path.join(korijenPrograma, "alati").replace("app.asar", "app.asar.unpacked");
+  for (const ime of ["yt-dlp.exe", "yt-dlp_macos", "yt-dlp_linux", "yt-dlp"]) {
+    const program = path.join(mapa, ime);
+    if (existsSync(program)) {
+      process.env.YTDLP_PATH = program;
+      return;
+    }
+  }
+}
+
 /** @type {BrowserWindow | null} */
 let prozor = null;
 /** @type {{ adresa: string, zatvori: () => void } | null} */
@@ -188,6 +209,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   pripremiFfmpeg();
+  pripremiYtDlp();
 
   /* Greška pri pokretanju mora se vidjeti. Bez ovoga bi program samo stajao u
      popisu procesa, bez prozora i bez ijedne poruke: `console` na Windowsima

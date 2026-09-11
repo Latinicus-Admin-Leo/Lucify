@@ -25,6 +25,10 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
+# yt-dlp uz namjensku aplikaciju: tudi je program, izlazi svaki tjedan i
+# dohvaca ga `npm run alati`, pa mu je mjesto uz build, a ne u povijesti.
+alati
+
 # glazbena zbirka: snimke su tude autorsko djelo i osobne su, pa ne idu na
 # GitHub. Stoje izvan `public/` zato sto Vite sve iz te mape prepisuje u
 # `dist/`, pa bi svaki build kopirao 600 MB uzalud.
