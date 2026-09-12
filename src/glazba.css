@@ -2136,10 +2136,25 @@ a.gdodajtipka {
 /* Tipka za jezik: ikona i dvoslovna kratica uz nju, pa se vidi na što se
    prelazi i kad je traka uska. */
 .gjeziktipka {
+  /* Kratica i globus u retku, a ne jedno nad drugim: `.gikona` je rešetka s
+     jednim stupcem i krug, pa se ovdje oboje poništava. Oblik je pilula, isti
+     kao „Poveznice” i „Dodaj pjesmu” pokraj nje, da traka ima jedan jezik. */
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
   width: auto;
-  gap: 5px;
-  padding: 0 9px;
+  height: 34px;
+  gap: 6px;
+  padding: 0 12px 0 13px;
+  border-radius: 999px;
+  background: var(--ploca);
+  color: var(--tekst);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.gjeziktipka:hover {
+  background: var(--ploca-vis);
+  color: var(--zeleno);
 }

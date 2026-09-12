@@ -792,8 +792,8 @@ export default function Glazba() {
             title={jezik === "hr" ? "Switch to English" : "Prebaci na hrvatski"}
             onClick={() => jezikStanje.postavi(jezikStanje.drugi())}
           >
-            <Globe size={18} aria-hidden="true" />
             <span aria-hidden="true">{jezik === "hr" ? "EN" : "HR"}</span>
+            <Globe size={16} aria-hidden="true" />
           </button>
           <button
             type="button"
