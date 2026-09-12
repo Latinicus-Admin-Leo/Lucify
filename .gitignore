@@ -36,4 +36,10 @@ Glazba/Zvuk
 
 # izvoz za mobitel: ista glazba, samo preimenovana i s upisanim oznakama.
 # Zadana mapa stoji uz projekt, pa bi je jedan "git add -A" odnio u povijest.
+# Isto vrijedi i za izvoz u jednu datoteku, uz "--zip".
 /Lucify za mobitel
+/Lucify za mobitel*.zip
+
+# zapis o tome sto je vec otislo na mobitel. Vrijedi za ovu zbirku na ovom
+# racunalu, pa nema sto traziti u povijesti Lucifyja.
+/.lucify-izvoz.json

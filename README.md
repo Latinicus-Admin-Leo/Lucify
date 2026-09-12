@@ -63,6 +63,7 @@ npm install        # ovisnosti, uz njih i ffmpeg
 npm run dev        # razvojni poslužitelj (port 5176)
 npm run glazba     # iznova pročita zbirku
 npm run izvezi     # zbirka za mobitel, s naslovima i omotima
+npm run izvezi -- --zip   # isto, ali u jednu datoteku, i samo ono novo
 npm run build      # produkcijski build
 npm run lint       # eslint . --quiet
 npm run typecheck  # tsc prema jsconfig (checkJs)
@@ -137,6 +138,36 @@ kao zadnja mogućnost za onoga tko ga već ima tako, a ne više put kojim yt-dlp
 **Preuzima se samo ono na što se ima pravo.** Alat to ne može provjeriti i ne pokušava:
 odluka je na onome tko lijepi poveznicu.
 
+### Zbirka na mobitelu, u Lucifyju
+
+```bash
+npm run izvezi -- --zip                       # „Lucify za mobitel 2026-09-12.zip” uz projekt
+npm run izvezi -- --zip "D:/za mobitel.zip"   # ili u zadanu datoteku
+npm run izvezi -- --zip --sve                 # cijela zbirka, a ne samo ono novo
+```
+
+Iz gotovoga programa: **Lucify → Izvoz za mobitel → U jednu datoteku, samo novo…**
+
+Putuje **jedna datoteka**, i u njoj samo ono što uređaj još nema. U tome je sva razlika
+prema izvozu u mapu: i on preskače ono što je već ondje, ali na mobitel se svejedno nosila
+cijela mapa, a na iPhoneu, koji za mape ne zna, ondje je trebalo označiti sto pedeset
+datoteka i pripaziti da je `popis.json` među njima. Sada je to jedan pritisak: prvi izvoz
+sto četrdeset i sedam pjesama nosi 671 MB, svaki sljedeći onoliko koliko se pjesama
+pribilo, a kad nema nijedne, 56 kB samoga popisa.
+
+Što je već otišlo, zapisano je u `.lucify-izvoz.json`, uz zbirku. Zapis je samo za brzinu:
+obriše li se, sljedeći izvoz iznese cijelu zbirku — veliko, ali ne i pogrešno. Za novi
+uređaj stoji **cijela zbirka**, koja zapis ne gleda.
+
+`popis.json` u arhivi opisuje **cijelu** zbirku, pa i kad je snimaka u njoj troje. Tako
+mora biti: uvoz po popisu zna što na uređaju smije stajati, pa bi popis od tri pjesme
+ostale sto četrdeset i četiri proglasio viškom i ponudio da ih obriše.
+
+Arhiva je **bez stiskanja**. Mp3 i jpg su već stisnuti, pa bi drugo stiskanje samo trošilo
+vrijeme; ovako snimka u njoj leži kao neprekinut niz bajtova, a Lucify je na uređaju čita
+`Blob.slice()`om, s mjesta na kojem jest, ne prepisujući ni megabajta. Zip koji je čovjek
+složio sam svejedno prolazi, kroz `DecompressionStream`.
+
 ### Zbirka na mobitelu, u tuđem sviraču
 
 ```bash
@@ -144,7 +175,8 @@ npm run izvezi                     # u „Lucify za mobitel/” uz projekt
 npm run izvezi -- "D:/Glazba"      # ili u zadanu mapu
 ```
 
-Iz gotovoga programa isto radi **Lucify → Izvoz za mobitel…**, i ondje je to jedini put:
+Iz gotovoga programa: **Lucify → Izvoz za mobitel → U mapu, za tuđi svirač…**, i ondje je
+to jedini put:
 tko je Lucify samo instalirao, nema ni mape projekta ni Nodea, pa ni naredbe. Isti posao
 i ista mapa — `scripts/` i ffmpeg ionako putuju s programom, pa se ništa ne doinstalira.
 
@@ -184,12 +216,14 @@ po adresi.
 | `src/GlazbaUvoz.jsx` | okvir „Zbirka”: mapa s računala u zbirku uređaja |
 | `src/glazba-izvor.mjs` | odakle snimka dolazi: poslužitelj ili sam uređaj |
 | `src/glazba-spremiste.mjs` | zbirka u IndexedDB, na objavljenom Lucifyju |
+| `src/glazba-zip.mjs` | čitanje arhive iz izvoza, bez prepisivanja bajtova |
 | `src/glazba.css` | sav izgled |
 | `src/Znak.jsx` | znak, ugrađen, za gornju traku |
 | `public/pisma/` | IBM Plex Mono, uz licenciju: pismo ne dolazi s mreže |
 | `scripts/glazba.mjs` | `npm run glazba`: selidba snimaka u zbirku |
 | `scripts/glazba-zbirka.mjs` | čitanje snimke i slaganje popisa |
-| `scripts/izvezi.mjs` | zbirka van, za svirač na mobitelu: `npm run izvezi` i jelovnik |
+| `scripts/izvezi.mjs` | zbirka van: u mapu za tuđi svirač, u jednu datoteku za Lucify |
+| `scripts/zip.mjs` | pisanje arhive, bez stiskanja i bez ijedne ovisnosti |
 | `scripts/posluga.mjs` | posluživanje zbirke s `/glazba/`, uz `Range` |
 | `scripts/preuzimac*.mjs` | poslovi preuzimanja, red čekanja, yt-dlp i ffmpeg |
 | `scripts/ikona.mjs` | `npm run ikona`: znak u ikonu programa |
@@ -218,22 +252,26 @@ pritom nosi **sam uređaj**, u IndexedDB, pa ne treba ni upaljeno računalo.
 Zato ondje, umjesto tipke **Dodaj pjesmu**, u gornjoj traci stoji **Zbirka**. Put je
 uvijek isti:
 
-1. na računalu `npm run izvezi`, ili **Lucify → Izvoz za mobitel…** u samom programu,
-   pa se dobivena mapa prenese na mobitel,
-2. u Lucifyju na mobitelu **Zbirka → Odaberi mapu**,
+1. na računalu **Lucify → Izvoz za mobitel → U jednu datoteku, samo novo…**, ili
+   `npm run izvezi -- --zip`, pa se dobivena datoteka prenese na mobitel,
+2. u Lucifyju na mobitelu **Zbirka → Odaberi datoteku**,
 3. dodati Lucify na početni zaslon.
 
 Treći korak nije ukras. Preglednik smije počistiti spremište stranice koja se dugo nije
 otvarala, a šesto megabajta je prvo na redu; prečacu na početnom zaslonu to se ne
 događa. Okvir **Zbirka** kaže je li zbirka već proglašena trajnom.
 
-Mapa se bira odjednom samo ondje gdje preglednik zna za mape, dakle na računalu i u
-Chromeu na Androidu. **iOS za mape ne zna**, pa se ondje uzima „Odaberi datoteke” i u
-Datotekama označi sve što je u mapi. Uvoz **dodaje, a ne zamjenjuje**, pa se smije
-obaviti i u nekoliko navrata; pjesma koja je već ovdje preskače se.
+Ide i mapa, tipkom **Odaberi mapu**, ali samo ondje gdje preglednik za mape zna, dakle na
+računalu i u Chromeu na Androidu; **iOS za mape ne zna**. Zato datoteka i jest prva: nju
+jednako uzimaju svi, a u Datotekama se označi jednim pritiskom. Tko bira mapu ili pojedine
+snimke, mora označiti i `popis.json`.
 
-`popis.json` iz te mape mora doći s prvim odabirom: iz njega dolaze očišćeni naslovi,
-izvođači i police. Snimka bez njega nema uza se ništa osim imena datoteke.
+Uvoz **dodaje, a ne zamjenjuje**, pa se smije obaviti i u nekoliko navrata; pjesma koja je
+već ovdje preskače se. Isti izvoz uvezen dvaput zato ne donese ništa, i ne potroši ništa.
+
+`popis.json` mora doći s prvim odabirom: iz njega dolaze očišćeni naslovi, izvođači i
+police, a snimka bez njega nema uza se ništa osim imena datoteke. U arhivi je uvijek, pa
+se ondje na nj ne treba ni misliti.
 
 ### Zbirka uređaja zna i smršavjeti
 

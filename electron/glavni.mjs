@@ -18,7 +18,7 @@ import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import elektronskiNadograditelj from "electron-updater";
 import { pokreniPosluzitelj } from "./posluzitelj.mjs";
-import { izvezi } from "../scripts/izvezi.mjs";
+import { izvezi, izveziZip } from "../scripts/izvezi.mjs";
 
 /* `electron-updater` je CommonJS, pa iz njega izlazi jedan predmet, a ne
    imenovani izvozi. Odatle ovaj rastav. */
@@ -330,6 +330,93 @@ async function izvozZaMobitel(zbirka) {
 }
 
 /**
+ * Izvoz u jednu datoteku, za Lucify na mobitelu.
+ *
+ * Izvoz u mapu ostaje iznad ovoga, za tuđe svirače, gdje mapa i treba biti
+ * mapa. Ovo je za Lucify, i miče ono što je u tom putu bilo najgore: mapu od
+ * sto pedeset datoteka trebalo je prenijeti na uređaj i ondje je cijelu predati
+ * Lucifyju, a na iPhoneu, koji za mape ne zna, označiti sto pedeset datoteka u
+ * Datotekama i pripaziti da je `popis.json` među njima.
+ *
+ * Sada putuje jedna datoteka, i u njoj samo ono što uređaj još nema. Što je već
+ * otišlo, zapisano je uz zbirku, pa drugi izvoz nosi dvije nove pjesme umjesto
+ * cijele zbirke — a s manje toga na uređaj i manje ostane ležati pokraj
+ * Lucifyjeve zbirke, koju uvoz svejedno puni.
+ *
+ * @param {string} zbirka @param {boolean} [sve] iznesi cijelu zbirku, bez obzira na zapis
+ */
+async function izvozUDatoteku(zbirka, sve = false) {
+  if (izvozTece || !prozor) return;
+
+  const danas = new Date().toISOString().slice(0, 10);
+  const izbor = await dialog.showSaveDialog(prozor, {
+    title: sve ? "Kamo spremiti cijelu zbirku" : "Kamo spremiti izvoz za mobitel",
+    defaultPath: path.join(app.getPath("music"), "Lucify za mobitel " + danas + ".zip"),
+    buttonLabel: "Izvezi",
+    filters: [{ name: "Arhiva", extensions: ["zip"] }],
+  });
+  if (izbor.canceled || !izbor.filePath) return;
+  const kamo = izbor.filePath;
+
+  /* Ponavljanje ide izvan `try`: dok je `izvozTece` još podignut, drugi bi se
+     poziv odmah vratio. */
+  let ponovi = false;
+  izvozTece = true;
+  try {
+    const r = await izveziZip({
+      korijen: zbirka,
+      kamo,
+      sve,
+      naNapredak: (n) => {
+        if (prozor) prozor.setProgressBar(n.ukupno ? n.gotovo / n.ukupno : 1);
+      },
+    });
+    if (prozor) prozor.setProgressBar(-1);
+
+    /* Bez ijedne nove pjesme datoteka nije uzalud — u njoj je osvježen popis,
+       pa na uređaj odu nove police i ispravljeni naslovi — ali čovjeku koji je
+       htio prenijeti glazbu to treba reći, i ponuditi ono što je vjerojatno
+       htio. */
+    const nista = !r.napisano;
+    const mb = Math.round(r.arhiva / (1024 * 1024));
+    const gumbi = nista
+      ? ["Izvezi cijelu zbirku", "Pokaži datoteku", "U redu"]
+      : ["Pokaži datoteku", "U redu"];
+    const odgovor = await dialog.showMessageBox(prozor, {
+      type: r.greske.length ? "warning" : "info",
+      message: nista
+        ? "Novih pjesama nema."
+        : "U datoteci: " + r.napisano + " od " + r.ukupno + ", " + mb + " MB.",
+      detail:
+        (nista
+          ? "Datoteka je svejedno složena i u njoj je osvježen popis, pa na uređaj " +
+            "odu nove police i ispravljeni naslovi.\n\n"
+          : r.preskoceno
+            ? "Ostalo mobitel već ima, pa nije ni pisano.\n\n"
+            : "") +
+        "Prenesi datoteku na mobitel, pa ondje u Lucifyju: Zbirka → Odaberi datoteku." +
+        (r.greske.length ? "\n\nNije izašlo: " + r.greske.length + "." : ""),
+      buttons: gumbi,
+      defaultId: 0,
+      cancelId: gumbi.length - 1,
+    });
+    if (nista && odgovor.response === 0) ponovi = true;
+    else if (odgovor.response === (nista ? 1 : 0)) shell.showItemInFolder(kamo);
+  } catch (greska) {
+    if (prozor) prozor.setProgressBar(-1);
+    await dialog.showMessageBox(prozor, {
+      type: "warning",
+      message: "Izvoz nije uspio.",
+      detail: String((greska && /** @type {any} */ (greska).message) || greska),
+    });
+  } finally {
+    izvozTece = false;
+  }
+
+  if (ponovi) await izvozUDatoteku(zbirka, true);
+}
+
+/**
  * Sustavski jelovnik na zahtjev stranice.
  *
  * Otkad prozor nema sustavske naslovne trake, nema ni retka s jelovnikom nad
@@ -378,8 +465,24 @@ function slozJelovnik(zbirka) {
         },
         { type: "separator" },
         {
-          label: "Izvoz za mobitel…",
-          click: () => izvozZaMobitel(zbirka),
+          label: "Izvoz za mobitel",
+          submenu: [
+            /* Prvo ono što se radi svaki tjedan, pa ono što se radi jednom po
+               uređaju, pa tek onda izvoz za tuđe svirače. */
+            {
+              label: "U jednu datoteku, samo novo…",
+              click: () => izvozUDatoteku(zbirka),
+            },
+            {
+              label: "U jednu datoteku, cijela zbirka…",
+              click: () => izvozUDatoteku(zbirka, true),
+            },
+            { type: "separator" },
+            {
+              label: "U mapu, za tuđi svirač…",
+              click: () => izvozZaMobitel(zbirka),
+            },
+          ],
         },
         { type: "separator" },
         {

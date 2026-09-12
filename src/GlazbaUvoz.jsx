@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eraser, FolderInput, HardDrive, Trash2, X } from "lucide-react";
+import { Eraser, FileArchive, FolderInput, Trash2, X } from "lucide-react";
 import {
   dajPopis,
   obrisiSve,
@@ -222,28 +222,30 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
           </div>
         ) : (
           <>
-            {/* Dvije tipke, jer dva sustava biraju različito: Android da mapu,
-                a iPhone ne zna za mape, nego se ondje u Datotekama označi sve
-                što je u njoj. */}
+            {/* Datoteka je prva, jer je jedna i jednaka na svakom sustavu:
+                izvoz je složi, a ovdje je dosta jedan pritisak — i na iPhoneu,
+                koji za mape ne zna. Mapa ostaje za onoga koji je izvezao mapu. */}
             <div className="gpno guredajtipke">
               <button
                 type="button"
                 className="glavna"
-                onClick={() => mapaRef.current && mapaRef.current.click()}
+                onClick={() => datotekeRef.current && datotekeRef.current.click()}
               >
-                <FolderInput size={16} aria-hidden="true" /> Odaberi mapu
+                <FileArchive size={16} aria-hidden="true" /> Odaberi datoteku
               </button>
               <button
                 type="button"
                 className="gdodajtipka"
-                onClick={() => datotekeRef.current && datotekeRef.current.click()}
+                onClick={() => mapaRef.current && mapaRef.current.click()}
               >
-                <HardDrive size={16} aria-hidden="true" /> Odaberi datoteke
+                <FolderInput size={16} aria-hidden="true" /> Odaberi mapu
               </button>
             </div>
             <p className="gdsitno">
-              Na iPhoneu mapa se ne da odabrati: uzmi <b>Odaberi datoteke</b>, pa u
-              Datotekama označi sve u mapi, zajedno s <code>popis.json</code>.
+              Izvoz za mobitel složi <b>jednu datoteku</b>, i nju je dosta odabrati; u njoj je
+              samo ono što ovaj uređaj još nema. Mapa i pojedine snimke i dalje prolaze: tada
+              označi sve u mapi, zajedno s <code>popis.json</code>. Na iPhoneu mapa se ne da
+              odabrati.
             </p>
           </>
         )}

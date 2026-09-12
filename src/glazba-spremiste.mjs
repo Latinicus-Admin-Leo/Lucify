@@ -19,6 +19,8 @@
  * ono što je traženo: svaki uređaj nosi svoju zbirku, i ne ovisi ni o čemu.
  */
 
+import { jeArhiva, raspakiraj } from "./glazba-zip.mjs";
+
 const BAZA = "lucify.zbirka";
 const IZDANJE = 1;
 
@@ -161,12 +163,17 @@ function samoIme(put) {
 }
 
 /**
- * Uvoz mape koju je složio `npm run izvezi`.
+ * Uvoz onoga što je složio izvoz za mobitel: mape ili **jedne datoteke**.
  *
  * **Dodaje, a ne zamjenjuje.** Na iPhoneu se mapa ne može odabrati, nego se
  * datoteke biraju rukom, pa ih zna stići pola; drugi odabir tada donese
  * ostatak umjesto da počne ispočetka. Snimka koja je već ovdje preskače se, pa
  * ponovljeni uvoz ne troši ni vrijeme ni mjesto.
+ *
+ * Arhiva stoji na mjestu mape i ondje je bolja od nje: jedna datoteka prelazi
+ * na uređaj lakše nego sto pedeset njih, a u Datotekama se označi jednim
+ * pritiskom. Uz to nosi samo ono što uređaj još nema, pa je obično sitna.
+ * Raspakirava se odmah ovdje, i sve dalje ne zna odakle je što došlo.
  *
  * Popis je jedino što uvoz **mora** naći, ovaj put ili neki prije: iz njega
  * dolaze očišćeni naslovi, izvođači i police. Bez njega bi ostala samo imena
@@ -176,11 +183,18 @@ function samoIme(put) {
  * @param {(n: { gotovo: number, ukupno: number, ime: string }) => void} [naNapredak]
  */
 export async function uvezi(datoteke, naNapredak) {
+  /** @type {File[]} */
+  const odabrane = [];
+  for (const f of datoteke) {
+    if (jeArhiva(f)) odabrane.push(...(await raspakiraj(f)));
+    else odabrane.push(f);
+  }
+
   /** @type {Map<string, File>} */
   const poImenu = new Map();
   /** @type {File | null} */
   let popisF = null;
-  for (const f of datoteke) {
+  for (const f of odabrane) {
     const ime = samoIme(f.name);
     if (ime.toLowerCase() === "popis.json") popisF = f;
     else poImenu.set(ime, f);
@@ -198,8 +212,8 @@ export async function uvezi(datoteke, naNapredak) {
   }
   if (!popis || !Array.isArray(popis.pjesme)) {
     throw new Error(
-      "U odabranome nema datoteke popis.json. Ona stoji u mapi koju složi " +
-        "`npm run izvezi`, i mora doći s prvim uvozom.",
+      "U odabranome nema datoteke popis.json. Ona stoji u arhivi i u mapi koje " +
+        "složi izvoz za mobitel, i mora doći s prvim uvozom.",
     );
   }
 
