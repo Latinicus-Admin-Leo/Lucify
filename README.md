@@ -69,6 +69,7 @@ npm run typecheck  # tsc prema jsconfig (checkJs)
 
 npm run namjenska  # namjenska aplikacija, iz izvora, bez pakiranja
 npm run pakiraj    # instalacija i prijenosni program u `izdanje/`
+npm run objavi     # isto, pa uz to i izdanje na GitHub (treba GH_TOKEN)
 npm run ikona      # public/lucify.svg -> build/icon.png
 npm run alati      # dohvati yt-dlp u `alati/` (pakiraj to radi sam)
 ```

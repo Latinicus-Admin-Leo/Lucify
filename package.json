@@ -20,7 +20,8 @@
     "build:namjenska": "vite build --mode namjenska",
     "namjenska": "npm run build:namjenska && electron .",
     "alati": "node scripts/alati.mjs",
-    "pakiraj": "npm run alati && npm run build:namjenska && electron-builder --win"
+    "pakiraj": "npm run alati && npm run build:namjenska && electron-builder --win",
+    "objavi": "npm run alati && npm run build:namjenska && electron-builder --win --publish always"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
