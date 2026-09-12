@@ -13,7 +13,7 @@
  */
 
 /*
- * Pismo stoji u `public/pisma/`, a ne dolazi s Googleovih poslužitelja.
+ * Pismo stoji u `src/pisma/`, a ne dolazi s Googleovih poslužitelja.
  * Dok je dolazilo izvana, namjenska aplikacija bez mreže na njega je čekala,
  * odustala i ispisala se sustavskim pismom: ondje nema uslužnoga radnika koji
  * bi ga spremio, jer ga `vite.config.js` u načinu `namjenska` namjerno ne
@@ -28,13 +28,20 @@
  * `latin-ext` dohvati tek kad zatreba slovo iz njega, dakle na našim
  * kvačicama. Rasponi su prepisani onakvi kakve daje Google, da se podjela ne
  * razlikuje od one koja je ovdje stajala prije.
+ *
+ * Stoji u `src/`, a ne u `public/`, i adresa mu je relativna (`./pisma/`),
+ * zato što objavljeni Lucify ne stoji na korijenu poslužitelja nego pod
+ * `/Lucify/`. Iz `public/` bi izašlo `/pisma/...`, što ondje pokazuje mimo
+ * aplikacije, na sam korijen domene. Ovako adresu piše Vite, pa je točna na
+ * sva tri mjesta: na razvojnom poslužitelju, u namjenskoj aplikaciji i pod
+ * podmapom.
  */
 @font-face {
   font-family: "IBM Plex Mono";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/pisma/IBMPlexMono-400-latin-ext.woff2") format("woff2");
+  src: url("./pisma/IBMPlexMono-400-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
     U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
     U+2113, U+2C60-2C7F, U+A720-A7FF;
@@ -44,7 +51,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/pisma/IBMPlexMono-400-latin.woff2") format("woff2");
+  src: url("./pisma/IBMPlexMono-400-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
     U+FEFF, U+FFFD;

@@ -6,6 +6,20 @@ import { zbirkaNaRazvoju } from "./scripts/posluga.mjs";
 import { preuzimacNaRazvoju } from "./scripts/preuzimac.mjs";
 
 /**
+ * Gdje objavljeni Lucify stoji na poslužitelju.
+ *
+ * Na GitHub Pagesu spremište koje nije `ime.github.io` ne dobiva korijen nego
+ * podmapu, ovdje `/Lucify/`. Zato adrese ne smiju biti apsolutne: `/assets/…`
+ * ondje pokazuje na sam korijen domene, mimo aplikacije.
+ *
+ * Zadano ostaje `/`, jer i razvojni poslužitelj i namjenska aplikacija stoje
+ * na korijenu; podmapu upisuje samo radni tijek koji objavljuje stranicu, kroz
+ * `LUCIFY_PODMAPA`. Tako se ista postavka slaže na sva tri mjesta, a nigdje ne
+ * piše ime spremišta osim ondje gdje se objavljuje.
+ */
+const podmapa = process.env.LUCIFY_PODMAPA || "/";
+
+/**
  * Objavljeni Lucify je **program na mobitelu**, a ne stranica koja se otvara:
  * doda se na početni zaslon, otvara se bez trake preglednika i radi bez mreže,
  * jer mu zbirka stoji na samom uređaju, u IndexedDB.
@@ -33,8 +47,8 @@ function pwa(mode) {
         short_name: "Lucify",
         description: "Vlastita zbirka glazbe i svirač uz nju.",
         lang: "hr",
-        start_url: "/",
-        scope: "/",
+        start_url: podmapa,
+        scope: podmapa,
         display: "standalone",
         orientation: "portrait",
         background_color: "#0a0a0b",
@@ -55,7 +69,7 @@ function pwa(mode) {
       workbox: {
         /* Sama stranica, i ništa osim nje. `poveznice.json` ulazi jer je
            dvadesetak kilobajta, a bez njega bi popis adresa na praznom uređaju
-           tražio mrežu. `woff2` ulazi otkad pismo stoji u `public/pisma/`:
+           tražio mrežu. `woff2` ulazi otkad pismo stoji uz Lucify, u `src/pisma/`:
            bez njega bi se ono na uređaju bez mreže tražilo uzalud, pa bi
            program izgledao drukčije nego dan prije. */
         globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest,json,woff2}"],
@@ -68,6 +82,7 @@ function pwa(mode) {
 }
 
 export default defineConfig(({ mode }) => ({
+  base: podmapa,
   /* Oba dodatka žive samo na `npm run dev`, a mapa projekta im se predaje
      odavde, jer se ove postavke prije pokretanja spoje u privremenu datoteku,
      pa se iznutra ne da izračunati gdje projekt stoji.

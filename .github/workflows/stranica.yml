@@ -1,0 +1,81 @@
+# Objavljeni Lucify: program na mobitelu.
+#
+# Ovo ne objavljuje glazbu nego samo Lucify, tristotinjak kilobajta stranice.
+# Zbirka na mobitel dolazi izvozom, iz same ruke, i nikad ne prolazi ovuda:
+# snimke su tuđe autorsko djelo i nisu ni u gitu.
+#
+# Namjenska aplikacija ovamo ne ide. Ona se gradi `npm run pakiraj`, na
+# Windowsima, i izlazi u `izdanje/`.
+
+name: Stranica
+
+on:
+  push:
+    branches: [main]
+  # Da se objava može potjerati i rukom, bez novoga commita.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Jedna objava u isti čas. `cancel-in-progress: false` zato što je bolje da
+# druga pričeka nego da prva ostane na pola.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  slozi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `--omit=optional` izbacuje ffmpeg-static, a `ELECTRON_SKIP_BINARY_DOWNLOAD`
+      # Electronov preglednik: zajedno su blizu tristo megabajta, a stranici ne
+      # treba ni jedno ni drugo. ffmpeg i yt-dlp žive samo ondje gdje iza
+      # Lucifyja stoji poslužitelj, a ovdje ga nema.
+      - run: npm ci --omit=optional
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+      - run: npm run lint
+      - run: npm run typecheck
+
+      # Spremište nije `ime.github.io`, pa stranica ne stoji na korijenu nego
+      # pod imenom spremišta. Ime se čita odavde, a ne prepisuje, da se ne
+      # razide s onim na GitHubu ako se spremište ikad preimenuje.
+      - run: npm run build
+        env:
+          LUCIFY_PODMAPA: /${{ github.event.repository.name }}/
+
+      # Provjera da glazba nije procurila u build. Isto piše i u README-u, ali
+      # ondje je za čovjeka; ovdje je za slučaj da čovjek zaboravi.
+      - name: Zbirke ne smije biti u buildu
+        run: |
+          if [ -e dist/glazba ] || [ -e dist/popis.json ]; then
+            echo "U dist/ je zavrsila zbirka. Objava se zaustavlja."
+            exit 1
+          fi
+          echo "dist/ je cist: nema ni mape glazba ni popis.json"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  objavi:
+    needs: slozi
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.objava.outputs.page_url }}
+    steps:
+      - id: objava
+        uses: actions/deploy-pages@v4
