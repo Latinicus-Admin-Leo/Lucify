@@ -37,11 +37,16 @@ jobs:
           node-version: 22
           cache: npm
 
-      # `--omit=optional` izbacuje ffmpeg-static, a `ELECTRON_SKIP_BINARY_DOWNLOAD`
-      # Electronov preglednik: zajedno su blizu tristo megabajta, a stranici ne
-      # treba ni jedno ni drugo. ffmpeg i yt-dlp žive samo ondje gdje iza
-      # Lucifyja stoji poslužitelj, a ovdje ga nema.
-      - run: npm ci --omit=optional
+      # `ELECTRON_SKIP_BINARY_DOWNLOAD` preskače Electronov preglednik, stotinjak
+      # megabajta koje stranici ne trebaju: ondje iza Lucifyja ne stoji
+      # poslužitelj, pa ni preuzimača nema.
+      #
+      # Ovdje je stajalo i `--omit=optional`, da se preskoči i ffmpeg. To je
+      # **pogrešno** i ne valja vraćati: Rollup svoj program za ovaj sustav
+      # isporučuje kao neobaveznu ovisnost (`@rollup/rollup-linux-x64-gnu`), pa
+      # ga ta zastavica odnese zajedno s ffmpegom, a Vite se onda ne digne
+      # uopće. Prva objava pala je upravo na tome.
+      - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
 
