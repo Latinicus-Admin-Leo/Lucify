@@ -72,6 +72,7 @@ npm run pakiraj    # instalacija i prijenosni program u `izdanje/`
 npm run objavi     # isto, pa uz to i izdanje na GitHub (treba GH_TOKEN)
 npm run ikona      # public/lucify.svg -> build/icon.png
 npm run alati      # dohvati yt-dlp u `alati/` (pakiraj to radi sam)
+npm run potpisivac # raspakiraj winCodeSign (pakiraj to radi sam)
 ```
 
 Port je **5176**, a ne 5174, da Lucify i Lucijankica mogu raditi istodobno.
@@ -183,6 +184,7 @@ po adresi.
 | `scripts/preuzimac*.mjs` | poslovi preuzimanja, red čekanja, yt-dlp i ffmpeg |
 | `scripts/ikona.mjs` | `npm run ikona`: znak u ikonu programa |
 | `scripts/alati.mjs` | `npm run alati`: yt-dlp u `alati/`, uz build |
+| `scripts/potpisivac.mjs` | `npm run potpisivac`: winCodeSign bez `-snld` |
 | `pokreni.cmd` | dvoklik na praznom računalu: zove `scripts/pokreni.ps1` |
 | `scripts/pokreni.ps1` | Node, ovisnosti, yt-dlp, gradnja, instalacija |
 | `electron/glavni.mjs` | namjenska aplikacija: prozor, jelovnik, mapa zbirke |
@@ -287,17 +289,20 @@ Build se zato slaže s `--mode namjenska`, i to je jedina razlika u izvoru: po t
 oznaci uključuje preuzimač, a savjeti o `npm` naredbama u praznoj zbirci zamjenjuju se
 onima o mapi i jelovniku.
 
-### Ako pakiranje pukne na `winCodeSign`
+### `winCodeSign` se raspakirava sam
 
-Na Windowsima bez „Developer Mode” graditelj ne uspije raspakirati svoj alat za
-potpisivanje, jer u njemu stoje macOS simboličke veze, a za njih treba pravo koje običan
-račun nema. Poruka govori o `Cannot create symbolic link`. Lijek je raspakirati ga jednom
-ručno, bez `-snld`, pa graditelj poslije nađe gotovo:
+U alatu za potpisivanje, koji graditelj dohvaća prije pakiranja, stoje dvije macOS
+simboličke veze. Graditelj ga raspakirava sa `7za x -snld`, a ta zastavica traži da veze
+ostanu veze; za pravljenje veze na Windowsima treba pravo koje običan račun nema, osim uz
+„Developer Mode”. 7za zato izađe s greškom o `Cannot create symbolic link`, graditelj to
+shvati kao neuspjeh i pokuša iznova — četiri puta, svaki put iznova preuzevši istih pet i
+pol megabajta i ostavivši za sobom mapu do pola raspakiranu.
 
-```bash
-C=$LOCALAPPDATA/electron-builder/Cache/winCodeSign
-node_modules/7zip-bin/win/x64/7za.exe x -bd -y "$C/winCodeSign-2.6.0.7z" "-o$C/winCodeSign-2.6.0"
-```
+To sada radi `npm run potpisivac`, koji `pakiraj` i `objavi` pokreću sami: istu arhivu
+raspakira **bez** `-snld`, pa 7za veze zapiše kao obične datoteke. Ovdje je to svejedno,
+jer su za macOS, a gradi se za Windows. Graditelj poslije nađe gotovu mapu i ne dira
+ništa. Usput pospremi i ostatke prijašnjih neuspjelih pokušaja.
 
-Dvije greške o `.dylib` vezama ostaju i ondje, i to je u redu: one su za macOS, a ovdje se
-gradi za Windows.
+Ako mapa već stoji, ne radi se ništa, pa pokretanje uz svaki `pakiraj` ništa ne stoji.
+Ako pak ne uspije, ne prekida gradnju nego je prepušta graditelju — dakle isto što je
+bilo i prije, ni gore.
