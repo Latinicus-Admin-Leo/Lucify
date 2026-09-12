@@ -1,0 +1,105 @@
+# Namjenska aplikacija: gradnja i objava na GitHubovu računalu.
+#
+# Dosad se `izdanje/` slagalo samo rukom, naredbom `npm run objavi`, a za nju
+# treba dvoje: Windows i `GH_TOKEN` u prozoru iz kojega se pokreće. Token se u
+# prozoru ne pamti, pa se unosio iznova svaki put. Ovo je isti posao, samo na
+# tuđem računalu: Actions nosi svoj token (`secrets.GITHUB_TOKEN`), pa se ne
+# unosi nikakav, a gradi se na `windows-latest`, jer se `.exe` za Windows ne da
+# složiti nigdje drugdje.
+#
+# Potjera ga **oznaka**, a ne svaki commit:
+#
+#   npm version patch        # digne inačicu u package.json i složi oznaku
+#   git push --follow-tags   # pošalje i commit i oznaku
+#
+# Gotovo izdanje ostaje **nacrt**, onako kako ga graditelj i ostavlja: prije
+# objave se vidi je li sve priloženo. Objavljuje se rukom, na stranici izdanjâ.
+#
+# Glazba ovamo ne ide, kao ni u „Stranicu”: snimke nisu u gitu, pa ih nema ni
+# ovdje. Ovuda ide samo program.
+
+name: Izdanje
+
+on:
+  push:
+    tags: ["v*"]
+  # Da se gradnja može potjerati i bez oznake, samo da se vidi prolazi li.
+  # Tada se ništa ne objavljuje, nego `.exe` visi na samoj gradnji.
+  workflow_dispatch:
+
+# Izdanje se pravi u spremištu, pa mu treba pravo pisanja. Ništa više: stranica
+# ima svoj tok i svoja prava.
+permissions:
+  contents: write
+
+# Dvije gradnje isti čas znale bi pisati u isto izdanje. `cancel-in-progress:
+# false` jer je bolje da druga pričeka nego da prva ostane na pola, s pola
+# priloženih datoteka.
+concurrency:
+  group: izdanje-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  slozi:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Oznaka i `package.json` moraju govoriti isto. Graditelj izdanje imenuje
+      # po `package.json`, a ne po oznaci pod kojom je potjeran, pa bi se inače
+      # pod oznakom `v1.0.2` našao program koji se i dalje predstavlja kao
+      # 1.0.1, a nadogradnja se ravna upravo po tome.
+      - name: Oznaka i inacica moraju se poklapati
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $oznaka = "${{ github.ref_name }}"
+          $inacica = "v" + (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($oznaka -ne $inacica) {
+            Write-Host "Oznaka $oznaka ne odgovara inacici $inacica iz package.json."
+            Write-Host 'Digni inacicu s "npm version", koja slozi i commit i oznaku.'
+            exit 1
+          }
+          Write-Host "Oznaka $oznaka odgovara inacici iz package.json."
+
+      # Ovdje **ne** stoji `ELECTRON_SKIP_BINARY_DOWNLOAD`, koji nosi „Stranica”.
+      # Ondje se slaže samo stranica i Electron joj ne treba; ovdje se pakira
+      # program, pa se instalira sve, isto kao na računalu na kojem `pakiraj`
+      # radi svaki dan.
+      - run: npm ci
+
+      - run: npm run lint
+      - run: npm run typecheck
+
+      # Isti posao kao rukom: `alati` dohvati yt-dlp, `potpisivac` raspakira
+      # winCodeSign bez `-snld`, pa graditelj složi `nsis` i `portable` i
+      # priloži ih nacrtu izdanja. Token je Actionsov, i vrijedi samo dok ova
+      # gradnja traje.
+      - name: Gradnja i objava
+        if: startsWith(github.ref, 'refs/tags/')
+        run: npm run objavi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Bez oznake nema ni izdanja u koje bi se priložilo, pa se samo gradi.
+      - name: Samo gradnja, bez objave
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: npm run pakiraj
+
+      # Da se gotov program dade uzeti i kad izdanja nema, i da se uz neuspjelu
+      # objavu vidi je li se uopće složio.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Lucify-izdanje
+          path: |
+            izdanje/*.exe
+            izdanje/*.blockmap
+            izdanje/latest.yml
+          if-no-files-found: warn
+          retention-days: 14

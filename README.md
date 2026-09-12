@@ -292,6 +292,30 @@ Kad YouTube promijeni svirač, a preuzimanja počnu padati, treba noviji yt-dlp:
 `npm run alati -- --osvjezi` pa iznova `npm run pakiraj`. Tko ga ima na putanji ili
 Pythonom, može ga i tako podmetnuti — preuzimač gleda i ondje, samo poslije.
 
+### Izdanje složi GitHub
+
+`npm run objavi` radi i dalje, ali za njega treba Windows pod rukom i `GH_TOKEN` u
+prozoru iz kojega se pokreće, a prozor token ne pamti, pa se unosio iznova svaki put.
+Izdanje zato sada može složiti i GitHub, tokom koji je njegov:
+
+```bash
+npm version patch        # digne inačicu u package.json i složi oznaku
+git push --follow-tags   # pošalje i commit i oznaku
+```
+
+Tok `.github/workflows/izdanje.yml` na oznaku uzme `windows-latest`, prođe `lint` i
+`typecheck`, pa pokrene isti `npm run objavi`. Gotovo izdanje ostaje **nacrt**, s
+priloženima `.exe`, `.blockmap` i `latest.yml`; objavljuje se rukom, kad se vidi da je sve
+ondje.
+
+Oznaka i `package.json` moraju govoriti isto, i tok to provjeri prije gradnje. Graditelj
+izdanje imenuje po `package.json`, a ne po oznaci pod kojom je potjeran, pa bi se inače
+pod `v1.0.2` našao program koji se i dalje predstavlja kao 1.0.1 — a nadogradnja se ravna
+upravo po tome. `npm version` zato slaže oboje zajedno.
+
+Bez oznake se tok dade potjerati i rukom („Run workflow”), i tada samo gradi: ništa se ne
+objavljuje, a gotov program visi na samoj gradnji, pod „Lucify-izdanje”.
+
 ### Gdje zbirka stoji
 
 Program ide u `Program Files`, kamo se ne piše, pa zbirka ondje **ne stoji uz njega**,
