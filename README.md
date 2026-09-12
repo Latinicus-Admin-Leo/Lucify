@@ -334,6 +334,22 @@ Zato u traci stoji **⋯**, odmah do znaka: pritisak ode `fetch`om na vlastiti p
 a prozor na to otvori isti onaj sustavski jelovnik. Stranici se ni zbog ovoga nije morao
 otvoriti Node.
 
+### Prozor se pokazuje na prvo od dvoga
+
+Prozor se stvara skriven (`show: false`), da se ne vidi kako se stranica slaže, a pokazuje
+se na ono što stigne prvo: na prvi nacrtani kadar (`ready-to-show`) ili na učitanu stranicu
+(kad `loadURL` prođe). Dvoje, a ne samo prvo, jer skriven prozor kadar ne dobije uvijek:
+kompozitor mu ga na nekim postavama grafike ne nacrta ni jedan, `ready-to-show` onda ne
+dođe nikad, a program svejedno radi — poslužitelj sluša, stranica se do kraja učita,
+jelovnik stoji — samo ga nitko ne vidi, pa se čini da se nije ni otvorio.
+
+Prepoznaje se po tome što Lucify stoji među procesima i drži svoju luku, a prozora nema.
+Provjereno izbliza, na prozoru koji se nije pokazao: `document.readyState` bio je
+`complete` i cijela je stranica stajala u `#root`, a `performance.getEntriesByType("paint")`
+prazan i `requestAnimationFrame` nije opalio ni jednom — dakle ni jedan kadar. Zato prozor
+više ne visi samo o kadru. Ništa se pritom ne vidi nedovršeno, jer `loadURL` čeka upravo
+kraj učitavanja.
+
 ### `winCodeSign` se raspakirava sam
 
 U alatu za potpisivanje, koji graditelj dohvaća prije pakiranja, stoje dvije macOS

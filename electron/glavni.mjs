@@ -235,7 +235,16 @@ async function otvori() {
     webPreferences: { contextIsolation: true, nodeIntegration: false },
     show: false,
   });
-  prozor.once("ready-to-show", () => prozor && prozor.show());
+  /* Prozor se pokazuje na ono što stigne prvo: na prvi nacrtani kadar ili na
+     učitanu stranicu. `ready-to-show` je brži, ali sam nije dovoljan, jer
+     čeka kadar, a kompozitor za skriven prozor na nekim postavama grafike ne
+     nacrta ni jedan. Program tada radi kako treba -- poslužitelj sluša,
+     stranica se do kraja učita, jelovnik stoji -- samo se prozor ne pokaže
+     nikad, pa se čini da se program nije ni otvorio. */
+  const pokazi = () => {
+    if (prozor && !prozor.isVisible()) prozor.show();
+  };
+  prozor.once("ready-to-show", pokazi);
   prozor.on("closed", () => {
     prozor = null;
   });
@@ -248,6 +257,9 @@ async function otvori() {
   });
 
   await prozor.loadURL(posluzitelj.adresa);
+  /* Druga polovica gornjega: `loadURL` čeka upravo kraj učitavanja, pa se
+     prozor koji se pokaže ovdje ne vidi nedovršen. */
+  pokazi();
   slozJelovnik(zbirka);
 }
 
