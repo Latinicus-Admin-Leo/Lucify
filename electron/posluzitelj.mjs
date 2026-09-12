@@ -35,13 +35,24 @@ const VRSTE = {
  * @param {object} opcije
  * @param {string} opcije.dist mapa s gotovim buildom
  * @param {string} opcije.zbirka mapa u kojoj stoji `Glazba/Zvuk` i `alati/`
+ * @param {() => void} [opcije.jelovnik] otvori sustavski jelovnik
  * @returns {Promise<{ adresa: string, zatvori: () => void }>}
  */
-export function pokreniPosluzitelj({ dist, zbirka }) {
+export function pokreniPosluzitelj({ dist, zbirka, jelovnik }) {
   const glazba = zbirkaRukovatelj(zbirka);
   const preuzmi = preuzimacRukovatelj(zbirka);
 
   const posluzitelj = http.createServer((req, res) => {
+    /* Jelovnik ide prvi, i jedini je koji ne traži ni zbirku ni build nego
+       sam prozor. Stranica do sustavskoga izbornika nema drugoga puta: prema
+       Node.ju je zatvorena, pa pita ovuda, kao i za sve ostalo. */
+    if (jelovnik && req.method === "POST" && (req.url || "").split("?")[0] === "/jelovnik") {
+      jelovnik();
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+
     /* Redom: zbirka, preuzimač, pa gotov build. Prva dvojica sama proslijede
        dalje ono što nije njihovo, istim `next()` dogovorom kao u Viteu. */
     glazba(req, res, () => {

@@ -300,9 +300,28 @@ To nije ukras: s `file://` preglednik ne može zatražiti dio datoteke (`Range`)
 pjesmi ne bi dalo skočiti na sredinu, a `fetch`, kojim se dohvaća popis, ondje uopće ne
 radi. Poslužitelj sluša samo na `127.0.0.1`, na luci koju mu dodijeli sustav.
 
-Build se zato slaže s `--mode namjenska`, i to je jedina razlika u izvoru: po toj se
-oznaci uključuje preuzimač, a savjeti o `npm` naredbama u praznoj zbirci zamjenjuju se
-onima o mapi i jelovniku.
+Build se zato slaže s `--mode namjenska`, i po toj se oznaci u izvoru razlikuje troje:
+uključuje se preuzimač, savjeti o `npm` naredbama u praznoj zbirci zamjenjuju se onima o
+mapi i jelovniku, a gornja traka preuzima posao naslovne trake prozora.
+
+### Prozor bez sustavske naslovne trake
+
+Iznad Lucifyja nema ni sustavske naslovne trake ni retka s jelovnikom: gornja traka ide
+sve do vrha, a gumbe prozora (—, ▢, ✕) Windows crta preko njezina desnog ugla i u njezinim
+bojama (`titleBarStyle: "hidden"` uz `titleBarOverlay`). Crta ih i dalje sustav, pa uz
+njih ostaje i sve što uz njih ide: razvlačenje prijelazom u gornji rub i izbornik
+razmještaja koji se pod mišem otvori nad ▢.
+
+Traka zato mora raditi i ono što je naslovna radila prije nje: za nju se prozor hvata i
+vuče (`-webkit-app-region: drag`), a sve što se u njoj pritišće mora biti izuzeto, jer bi
+inače pritisak otišao prozoru umjesto gumbu. Koliko desno ustupi gumbima, ne pogađa se
+nego dolazi iz `env(titlebar-area-width)`; visina joj je u `electron/glavni.mjs` upisana
+kao `VISINA_TRAKE` i mora ostati ista kao `.gvrh` u `glazba.css`, pa se mijenjaju zajedno.
+
+Jelovnik time ostaje bez svojega retka i seli se pod Alt, a mapa zbirke drugih vrata nema.
+Zato u traci stoji **⋯**, odmah do znaka: pritisak ode `fetch`om na vlastiti poslužitelj,
+a prozor na to otvori isti onaj sustavski jelovnik. Stranici se ni zbog ovoga nije morao
+otvoriti Node.
 
 ### `winCodeSign` se raspakirava sam
 

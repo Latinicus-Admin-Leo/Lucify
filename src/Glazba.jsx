@@ -49,6 +49,13 @@ import "./glazba.css";
 /* Namjenska aplikacija ima zbirku u mapi koju čovjek bira, a ne uz projekt,
    pa joj savjeti o `npm` naredbama ne znače ništa. */
 const NAMJENSKA = import.meta.env.MODE === "namjenska";
+
+/* Razred stoji na korijenu, a ne na samom Lucifyju, i upisuje se odmah, a ne
+   iz prikaza: traka mora biti povlačna i dok se zbirka tek otvara, jer se
+   inače prozor dotad ne bi dao pomaknuti. */
+if (NAMJENSKA && typeof document !== "undefined") {
+  document.documentElement.classList.add("uprozoru");
+}
 /* Ista provjera kao `NA_UREDAJU`, samo okrenuta, i zato izvedena odande a ne
    napisana drugi put: gdje god ima poslužitelja koji zna preuzeti pjesmu, ima i
    poslužitelja koji je zna poslužiti. */
@@ -656,6 +663,24 @@ export default function Glazba() {
           <Znak mjera={24} />
           <b>Lucify</b>
         </div>
+        {/* Jelovnik namjenske aplikacije. Otkad prozor nema sustavske
+            naslovne trake, nema ni retka s jelovnikom, pa je ovo jedina vrata
+            mapi zbirke koja se ne otvaraju Altom. Otvara ga prozor, a ne
+            stranica: ona samo pokuca na vlastiti poslužitelj. */}
+        {NAMJENSKA ? (
+          <button
+            type="button"
+            className="gikona gjelovniktipka"
+            aria-label="Jelovnik"
+            onClick={() => {
+              fetch("/jelovnik", { method: "POST" }).catch(() => {
+                /* Nema li poslužitelja, nema ni jelovnika; Alt i dalje radi. */
+              });
+            }}
+          >
+            <MoreHorizontal size={19} aria-hidden="true" />
+          </button>
+        ) : null}
         <button
           type="button"
           className="gikona zbirkatipka"

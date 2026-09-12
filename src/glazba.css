@@ -150,6 +150,49 @@
   gap: 10px;
   padding: 10px 14px 4px;
 }
+/*
+ * Traka namjenske aplikacije ujedno je i naslovna traka prozora.
+ *
+ * Prozor ondje nema sustavske naslovne trake: gumbe (—, ▢, ✕) crta Windows
+ * preko gornjega desnoga ugla same stranice, u njezinim bojama. Zato traka
+ * mora preuzeti i ono što je naslovna radila — prozor se za nju hvata i vuče,
+ * a dvoklik ga razvlači.
+ *
+ * Razred `uprozoru` upisuje `Glazba.jsx`, i to samo u namjenskom buildu: u
+ * pregledniku ovo ne bi značilo ništa, a na mobitelu bi značilo da se traka ne
+ * da dotaknuti.
+ */
+.uprozoru .gvrh {
+  -webkit-app-region: drag;
+  /* Gumbi prozora sjede u gornjem desnom uglu stranice, preko svega što je
+     ondje. `titlebar-area-width` je ono što od širine ostaje pokraj njih, pa
+     je razlika do pune širine točno onoliko koliko im treba ustupiti. Gdje te
+     mjere nema, zamjena kaže „cijela širina”, a razlika ispadne nula. */
+  padding-right: calc(100% - env(titlebar-area-width, 100%) + 14px);
+}
+/* Sve što se pritišće mora biti izuzeto, inače pritisak odlazi prozoru, a ne
+   gumbu, i traka se umjesto pretrage počne vući. */
+.uprozoru .gvrh button,
+.uprozoru .gvrh a,
+.uprozoru .gvrh label,
+.uprozoru .gvrh input {
+  -webkit-app-region: no-drag;
+}
+/* Tipka koja otvara sustavski jelovnik. Ime joj je `gjelovniktipka`, a ne
+   `gjelovnik`, jer je `gjelovnik` već izbornik koji iz trake ispada: stoji
+   `position: absolute`, širok je 218 točaka i dolazi niže u datoteci, pa bi
+   pobijedio `gikonu` i razlio tipku preko znaka. Isti sudar kao `gsvira`
+   nekoć, i isti lijek — `grep` prije novoga imena. */
+.uprozoru .gvrh .gjelovniktipka {
+  flex: none;
+}
+
+/* Dok se zbirka tek otvara, trake još nema. Prozor se dotad hvata za samu
+   poruku, jer bi inače nekoliko trenutaka stajao ukopan. */
+.uprozoru .gporuka {
+  -webkit-app-region: drag;
+}
+
 /* Znak i ime. Ime nestaje na uskom zaslonu, a znak ostaje: on je ono po čemu
    se aplikacija prepoznaje, a traka je ondje pretijesna za oboje. */
 .gznak {

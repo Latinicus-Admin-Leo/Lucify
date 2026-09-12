@@ -23,6 +23,15 @@ import { pokreniPosluzitelj } from "./posluzitelj.mjs";
    imenovani izvozi. Odatle ovaj rastav. */
 const { autoUpdater } = elektronskiNadograditelj;
 
+/**
+ * Visina gornje trake, onakve kakvu crta stranica (`.gvrh` u `glazba.css`).
+ *
+ * Gumbe prozora crta Windows, a ne stranica, pa mu treba reći dokle traka
+ * seže: niže bi ih spustilo preko sadržaja, više bi ih objesilo iznad trake.
+ * Dvije mjere moraju ostati iste, pa se mijenjaju zajedno.
+ */
+const VISINA_TRAKE = 58;
+
 const ovdje = path.dirname(fileURLToPath(import.meta.url));
 const korijenPrograma = path.join(ovdje, "..");
 
@@ -178,6 +187,8 @@ async function provjeriNadogradnju() {
 let prozor = null;
 /** @type {{ adresa: string, zatvori: () => void } | null} */
 let posluzitelj = null;
+/** @type {Electron.Menu | null} */
+let jelovnik = null;
 
 async function otvori() {
   const zbirka = nadiZbirku();
@@ -192,6 +203,7 @@ async function otvori() {
   posluzitelj = await pokreniPosluzitelj({
     dist: path.join(korijenPrograma, "dist"),
     zbirka,
+    jelovnik: otvoriJelovnik,
   });
 
   prozor = new BrowserWindow({
@@ -202,6 +214,21 @@ async function otvori() {
     backgroundColor: "#0a0a0b",
     title: "Lucify",
     icon: path.join(korijenPrograma, "build", "icon.png"),
+    /* Gumbe prozora (—, ▢, ✕) i dalje crta Windows, ali preko same stranice i
+       u njezinim bojama, pa gornja traka Lucifyja ide sve do vrha: iznad nje
+       više nema ni sustavske naslovne trake ni retka s jelovnikom. Traka se
+       zato u `glazba.css` proglašava povlačnom, jer se inače prozor ne bi imao
+       za što uhvatiti. */
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#0a0a0b",
+      symbolColor: "#b3b3b3",
+      height: VISINA_TRAKE,
+    },
+    /* Jelovnik ostaje i radi, ali se ne vidi dok se ne pritisne Alt. Da na
+       tome ostane, mapa zbirke ne bi imala vrata, pa ih stranica dobiva u
+       traci, tipkom koja otvara isti ovaj jelovnik. */
+    autoHideMenuBar: true,
     /* Stranica ništa ne traži od Node.ja: sve ide kroz `fetch` na vlastiti
        poslužitelj, pa prozor ostaje zatvoren prema sustavu. */
     webPreferences: { contextIsolation: true, nodeIntegration: false },
@@ -224,64 +251,78 @@ async function otvori() {
 }
 
 /**
+ * Sustavski jelovnik na zahtjev stranice.
+ *
+ * Otkad prozor nema sustavske naslovne trake, nema ni retka s jelovnikom nad
+ * njom: ostao je na Altu, a to nitko ne pogodi. Zato ga stranica otvara tipkom
+ * u gornjoj traci, a pita za nj isto kao i za sve ostalo — `fetch` na vlastiti
+ * poslužitelj. Node joj ni zbog ovoga nije trebalo otvoriti.
+ */
+function otvoriJelovnik() {
+  if (jelovnik && prozor) jelovnik.popup({ window: prozor });
+}
+
+/**
  * Jelovnik. Mapa zbirke mora se dati otvoriti i promijeniti, jer je inače
  * zakopana u korisnikovoj mapi i nema joj druge vrate.
+ *
+ * Pamti se, a ne samo postavlja, jer isti onaj koji stoji pod Altom mora moći
+ * iskočiti i pod tipkom u traci.
  *
  * @param {string} zbirka
  */
 function slozJelovnik(zbirka) {
-  Menu.setApplicationMenu(
-    Menu.buildFromTemplate([
-      {
-        label: "Lucify",
-        submenu: [
-          {
-            label: "Otvori mapu zbirke",
-            click: () => shell.openPath(path.join(zbirka, "Glazba", "Zvuk")),
+  jelovnik = Menu.buildFromTemplate([
+    {
+      label: "Lucify",
+      submenu: [
+        {
+          label: "Otvori mapu zbirke",
+          click: () => shell.openPath(path.join(zbirka, "Glazba", "Zvuk")),
+        },
+        {
+          label: "Promijeni mapu zbirke…",
+          click: async () => {
+            const izbor = await dialog.showOpenDialog({
+              title: "Gdje stoji zbirka",
+              defaultPath: zbirka,
+              properties: ["openDirectory", "createDirectory"],
+            });
+            if (izbor.canceled || !izbor.filePaths[0]) return;
+            zapisiPostavke({ ...procitajPostavke(), zbirka: izbor.filePaths[0] });
+            /* Poslužitelj je mapu zapamtio pri pokretanju, pa se nova vidi
+               tek iz početka. Bolje to nego pola stanja na jednoj, pola na
+               drugoj mapi. */
+            app.relaunch();
+            app.exit(0);
           },
-          {
-            label: "Promijeni mapu zbirke…",
-            click: async () => {
-              const izbor = await dialog.showOpenDialog({
-                title: "Gdje stoji zbirka",
-                defaultPath: zbirka,
-                properties: ["openDirectory", "createDirectory"],
-              });
-              if (izbor.canceled || !izbor.filePaths[0]) return;
-              zapisiPostavke({ ...procitajPostavke(), zbirka: izbor.filePaths[0] });
-              /* Poslužitelj je mapu zapamtio pri pokretanju, pa se nova vidi
-                 tek iz početka. Bolje to nego pola stanja na jednoj, pola na
-                 drugoj mapi. */
-              app.relaunch();
-              app.exit(0);
-            },
-          },
-          { type: "separator" },
-          {
-            label: "Provjeri ima li novoga Lucifyja…",
-            click: () => provjeriNadogradnju(),
-          },
-          { type: "separator" },
-          { role: "reload" },
-          { role: "toggleDevTools" },
-          { type: "separator" },
-          { role: "quit", label: "Izlaz" },
-        ],
-      },
-      {
-        label: "Uredi",
-        submenu: [
-          { role: "undo", label: "Poništi" },
-          { role: "redo", label: "Ponovi" },
-          { type: "separator" },
-          { role: "cut", label: "Izreži" },
-          { role: "copy", label: "Kopiraj" },
-          { role: "paste", label: "Zalijepi" },
-          { role: "selectAll", label: "Odaberi sve" },
-        ],
-      },
-    ]),
-  );
+        },
+        { type: "separator" },
+        {
+          label: "Provjeri ima li novoga Lucifyja…",
+          click: () => provjeriNadogradnju(),
+        },
+        { type: "separator" },
+        { role: "reload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "quit", label: "Izlaz" },
+      ],
+    },
+    {
+      label: "Uredi",
+      submenu: [
+        { role: "undo", label: "Poništi" },
+        { role: "redo", label: "Ponovi" },
+        { type: "separator" },
+        { role: "cut", label: "Izreži" },
+        { role: "copy", label: "Kopiraj" },
+        { role: "paste", label: "Zalijepi" },
+        { role: "selectAll", label: "Odaberi sve" },
+      ],
+    },
+  ]);
+  Menu.setApplicationMenu(jelovnik);
 }
 
 /** @param {unknown} greska */
