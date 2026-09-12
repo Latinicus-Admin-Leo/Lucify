@@ -2,9 +2,9 @@
   "name": "lucify",
   "productName": "Lucify",
   "description": "Vlastita zbirka glazbe i svirač uz nju.",
-  "author": "Leo Bobinac",
+  "author": "LB",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "main": "electron/glavni.mjs",
   "scripts": {
