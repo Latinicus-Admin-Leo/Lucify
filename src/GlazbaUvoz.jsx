@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FolderInput, HardDrive, Trash2, X } from "lucide-react";
+import { Eraser, FolderInput, HardDrive, Trash2, X } from "lucide-react";
 import {
   dajPopis,
   obrisiSve,
   oznakeSnimaka,
+  pocisti,
   procjena,
   trajno,
   uvezi,
+  visak,
 } from "./glazba-spremiste.mjs";
 import { zatvoriOmote } from "./glazba-izvor.mjs";
 
@@ -34,15 +36,17 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
   const datotekeRef = useRef(/** @type {HTMLInputElement | null} */ (null));
 
   const osvjezi = useCallback(async () => {
-    const [oznake, popis, mjesto] = await Promise.all([
+    const [oznake, popis, mjesto, suvisno] = await Promise.all([
       oznakeSnimaka(),
       dajPopis(),
       procjena(),
+      visak(),
     ]);
     setStanje({
       uZbirci: oznake.size,
       uPopisu: popis && popis.pjesme ? popis.pjesme.length : 0,
       mjesto,
+      suvisno,
       /* Pita se samo, ne i traži: odgovor je na pregledniku. */
       trajno: await trajno(),
     });
@@ -99,6 +103,29 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
     }
   };
 
+  /**
+   * Počisti ono čega u popisu više nema.
+   *
+   * Ide kroz isti `radi` kao i uvoz, pa se okvir dotad ne da zatvoriti: to je
+   * brisanje, i mora se vidjeti dokle je stiglo. Popis se poslije čita iznova
+   * jer su stare adrese omota upravo prestale vrijediti.
+   */
+  const ocisti = async () => {
+    if (!stanje || !stanje.suvisno || !stanje.suvisno.snimke.length) return;
+    setRadi(true);
+    setGreska("");
+    try {
+      await pocisti(stanje.suvisno);
+      zatvoriOmote();
+      await osvjezi();
+      naUvezeno();
+    } catch (g) {
+      setGreska((g && g.message) || "Čišćenje nije uspjelo.");
+    } finally {
+      setRadi(false);
+    }
+  };
+
   const obrisi = async () => {
     setRadi(true);
     try {
@@ -114,6 +141,8 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
   };
 
   const mjesto = stanje && stanje.mjesto;
+  const suvisno = stanje && stanje.suvisno;
+  const oVisku = suvisno && suvisno.snimke.length ? sklop(suvisno.snimke.length) : null;
   const ugradena =
     typeof window !== "undefined" &&
     window.matchMedia &&
@@ -155,7 +184,7 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
             <span>
               {stanje && stanje.uPopisu && stanje.uZbirci < stanje.uPopisu
                 ? "od " + stanje.uPopisu + " iz popisa"
-                : "pjesama na uređaju"}
+                : (stanje ? padez(stanje.uZbirci) : "pjesama") + " na uređaju"}
             </span>
           </div>
           <div className="guredajmjera">
@@ -250,6 +279,23 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
           </div>
         ) : null}
 
+        {/* Druga strana one mjere gore: ondje piše da popis zna za više nego što
+            je ovdje došlo, a ovdje da je ovdje ostalo više nego što popis zna.
+            Uvoz samo dodaje, pa pjesma izbačena na računalu ostaje ovdje, a
+            `samoDostupno()` je sakrije iz popisa — mjesto svejedno drži. */}
+        {oVisku && !radi ? (
+          <div className="guredajvisak">
+            <span className="gdsitno">
+              Ovdje {oVisku.stoji} {suvisno.snimke.length} {oVisku.imenica} {oVisku.koje} u
+              popisu više nema{suvisno.bajtova ? ", " + koliko(suvisno.bajtova) : ""}. To se
+              ne svira i ne vidi, a mjesto drži.
+            </span>
+            <button type="button" className="gdodajtipka" onClick={ocisti} disabled={radi}>
+              <Eraser size={15} aria-hidden="true" /> Počisti
+            </button>
+          </div>
+        ) : null}
+
         {/* Zbirka koju preglednik smije počistiti nije zbirka. Na Androidu
             dodavanje na početni zaslon obično presudi, a na iPhoneu je to
             jedino što uopće pomaže. */}
@@ -302,6 +348,27 @@ function koliko(bajtova) {
   if (mb >= 1024) return (mb / 1024).toFixed(1) + " GB";
   if (mb < 1) return Math.round(bajtova / 1024) + " kB";
   return Math.round(mb) + " MB";
+}
+
+/**
+ * Broj u hrvatskome ne mijenja samo imenicu nego i glagol uza nju i odnosnu
+ * zamjenicu iza nje: „stoji 1 pjesma koje nema”, „stoje 2 pjesme kojih nema”,
+ * „stoji 5 pjesama kojih nema”. Zato idu zajedno, a ne svaki za sebe: složi li
+ * se rečenica po komadima, složi se kriva.
+ *
+ * @param {number} n
+ */
+function sklop(n) {
+  const z = n % 100;
+  const naest = z > 10 && z < 20;
+  const j = n % 10;
+  return {
+    /* Dva, tri i četiri traže množinu; jedan i sve od pet nadalje jedninu. */
+    stoji: !naest && j >= 2 && j <= 4 ? "stoje" : "stoji",
+    imenica: padez(n),
+    /* Iza „nema” ide genitiv: jednine za jedan, množine za sve ostalo. */
+    koje: !naest && j === 1 ? "koje" : "kojih",
+  };
 }
 
 /** @param {number} n */

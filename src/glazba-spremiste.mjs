@@ -142,6 +142,16 @@ export async function sviOmoti() {
   return m;
 }
 
+/** Imena svih omota koji su ovdje, onakva kakva stoje u popisu. @returns {Promise<Set<string>>} */
+export async function oznakeOmota() {
+  try {
+    const kljucevi = await zahtjev((await ured(OMOTI, "readonly")).getAllKeys());
+    return new Set((kljucevi || []).map(String));
+  } catch {
+    return new Set();
+  }
+}
+
 /* ---------- uvoz ---------- */
 
 /** Ime datoteke bez mape ispred njega. @param {string} put */
@@ -240,6 +250,96 @@ export async function uvezi(datoteke, naNapredak) {
 
   const imam = await oznakeSnimaka();
   return { doneseno, preskoceno, greske, uZbirci: imam.size, uPopisu: ukupno };
+}
+
+/* ---------- višak ---------- */
+
+/**
+ * Što na uređaju stoji, a u popisu ga više nema.
+ *
+ * Uvoz samo dodaje, pa zbirka uređaja zna jedino rasti. Pjesma koja je na
+ * računalu izbačena ostaje ovdje zauvijek: `samoDostupno()` je ne pokaže, jer
+ * je nema u popisu, ali njezina četiri megabajta i dalje stoje. Na mobitelu, u
+ * koji stane šesto megabajta, to je prije ili poslije jedina stvar koja smeta,
+ * a jedini je lijek dosad bio obrisati sve i prenositi zbirku iznova.
+ *
+ * Višak se traži prema **popisu**, a ne prema onome što je maloprije odabrano,
+ * i u tome je sav oprez: na iPhoneu se datoteke biraju rukom, pa ih zna stići
+ * pola, dok je `popis.json` cijel već iz prvoga odabira. Kad bi se višak
+ * računao iz odabira, drugi bi uvoz pobrisao sve što je donio prvi.
+ *
+ * @returns {Promise<{ snimke: string[], omoti: string[], bajtova: number }>}
+ */
+export async function visak() {
+  const popis = await dajPopis();
+  /* Bez popisa se ne zna što je ovdje suvišno, pa nije suvišno ništa. */
+  if (!popis || !Array.isArray(popis.pjesme)) return { snimke: [], omoti: [], bajtova: 0 };
+
+  const uPopisu = new Set(popis.pjesme.map((/** @type {any} */ p) => String(p.id)));
+  const omotiUPopisu = new Set(
+    popis.pjesme
+      .map((/** @type {any} */ p) => p.omot)
+      .filter(Boolean)
+      .map(String),
+  );
+
+  const snimke = [...(await oznakeSnimaka())].filter((k) => !uPopisu.has(k));
+  const omoti = [...(await oznakeOmota())].filter((k) => !omotiUPopisu.has(k));
+
+  const bajtova = (await zbrojiVelicine(ZVUK, snimke)) + (await zbrojiVelicine(OMOTI, omoti));
+  return { snimke, omoti, bajtova };
+}
+
+/**
+ * Koliko zauzima ono što se nabraja.
+ *
+ * Pita se samo za višak, a nikad za cijelo skladište: `get` vraća `Blob`, a
+ * `Blob` je ovdje uputa na datoteku, a ne njezin sadržaj, pa `.size` ništa ne
+ * čita s diska. Svejedno, za sto pedeset njih nema smisla ići kad se pita za
+ * troje.
+ *
+ * @param {string} skladiste @param {string[]} kljucevi
+ */
+async function zbrojiVelicine(skladiste, kljucevi) {
+  let zbroj = 0;
+  for (const k of kljucevi) {
+    try {
+      const b = await zahtjev((await ured(skladiste, "readonly")).get(k));
+      if (b && b.size) zbroj += b.size;
+    } catch {
+      /* veličina je ovdje obavijest, a ne uvjet */
+    }
+  }
+  return zbroj;
+}
+
+/**
+ * Briše točno ono što je `visak()` našao, i ništa mimo toga.
+ *
+ * Popis se ne dira: on je već onakav kakav treba biti, inače viška ne bi ni
+ * bilo.
+ *
+ * @param {{ snimke: string[], omoti: string[] }} sto
+ */
+export async function pocisti(sto) {
+  const b = await otvori();
+  await Promise.all([
+    obrisiKljuceve(b, ZVUK, sto.snimke || []),
+    obrisiKljuceve(b, OMOTI, sto.omoti || []),
+  ]);
+}
+
+/**
+ * Jedan ured po skladištu, a ne po ključu: brisanje ne čeka ništa izvana, pa
+ * svi zahtjevi stanu u isti, dok bi `await` među njima svaki put zatvorio ured
+ * i otvorio novi.
+ *
+ * @param {IDBDatabase} b @param {string} skladiste @param {string[]} kljucevi
+ */
+function obrisiKljuceve(b, skladiste, kljucevi) {
+  if (!kljucevi.length) return Promise.resolve([]);
+  const s = b.transaction(skladiste, "readwrite").objectStore(skladiste);
+  return Promise.all(kljucevi.map((k) => zahtjev(s.delete(k))));
 }
 
 /** Briše cijelu zbirku s ovoga uređaja. Srca i popisi u `localStorage` ostaju. */

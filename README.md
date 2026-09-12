@@ -224,6 +224,21 @@ obaviti i u nekoliko navrata; pjesma koja je već ovdje preskače se.
 `popis.json` iz te mape mora doći s prvim odabirom: iz njega dolaze očišćeni naslovi,
 izvođači i police. Snimka bez njega nema uza se ništa osim imena datoteke.
 
+### Zbirka uređaja zna i smršavjeti
+
+Kad uvoz samo dodaje, zbirka uređaja jedino raste: pjesma izbačena na računalu ostaje
+ovdje i poslije novoga izvoza. Ne vidi je se, jer je nema u popisu, ali mjesto drži, a
+jedini je lijek dosad bio obrisati sve i prenositi zbirku iznova.
+
+Okvir **Zbirka** takve sada prebroji, izmjeri koliko zauzimaju i ponudi **Počisti**.
+Briše se točno ono čega u popisu nema, snimke i omoti zajedno, i ništa mimo toga; sam
+popis se ne dira, jer je već onakav kakav treba biti.
+
+Višak se traži **prema popisu**, a ne prema onome što je maloprije odabrano, i u tome je
+sav oprez: na iPhoneu datoteke stižu u nekoliko navrata, dok je `popis.json` cijel već iz
+prvoga odabira. Kad bi se višak računao iz odabira, drugi bi uvoz pobrisao sve što je
+donio prvi.
+
 **Preuzimanja ondje nema**, kao ni prije: iza objavljene stranice ne stoje ni yt-dlp ni
 ffmpeg. Nove pjesme ulaze na računalu, pa se izvoz ponovi.
 

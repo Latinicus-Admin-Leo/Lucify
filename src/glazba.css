@@ -1460,6 +1460,21 @@ a.gdodajtipka {
   border-left: 2px solid var(--zeleno);
   padding-left: 10px;
 }
+/* Višak stoji u istom redu kao i brisanje zbirke, ali bez crte iznad i bez
+   naglaska: to nije odluka o kojoj se dvaput misli nego pospremanje, a briše
+   se samo ono što se ionako ne vidi. */
+.guredajvisak {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.guredajvisak .gdsitno {
+  flex: 1;
+  margin-top: 0;
+  min-width: 180px;
+}
 .guredajbrisi {
   margin-top: 18px;
   padding-top: 14px;
