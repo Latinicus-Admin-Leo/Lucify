@@ -144,6 +144,16 @@ npm run izvezi                     # u „Lucify za mobitel/” uz projekt
 npm run izvezi -- "D:/Glazba"      # ili u zadanu mapu
 ```
 
+Iz gotovoga programa isto radi **Lucify → Izvoz za mobitel…**, i ondje je to jedini put:
+tko je Lucify samo instalirao, nema ni mape projekta ni Nodea, pa ni naredbe. Isti posao
+i ista mapa — `scripts/` i ffmpeg ionako putuju s programom, pa se ništa ne doinstalira.
+
+Izvozi se **samo ono što se promijenilo**. Snimka koja u odredišnoj mapi već stoji, a
+otad se nije dirala, preskače se: prvi izvoz stotinu i pedeset pjesama traje desetak
+sekunda, svaki sljedeći manje od jedne, a preko žice poslije ide samo ono što je doista
+novo. Uspoređuje se vrijeme, a ne veličina, jer je izlaz premotan i nosi omot, pa mu
+veličina ionako nije ista kao ulazu.
+
 Sam Lucify na mobitel ne ide: `.exe` je za Windows, a stranica bez poslužitelja iza
 sebe ne može ni dohvatiti popis ni skočiti na sredinu pjesme. Ide zbirka, a svira je
 svirač koji na mobitelu ionako već stoji.
@@ -179,7 +189,7 @@ po adresi.
 | `public/pisma/` | IBM Plex Mono, uz licenciju: pismo ne dolazi s mreže |
 | `scripts/glazba.mjs` | `npm run glazba`: selidba snimaka u zbirku |
 | `scripts/glazba-zbirka.mjs` | čitanje snimke i slaganje popisa |
-| `scripts/izvezi.mjs` | `npm run izvezi`: zbirka van, za svirač na mobitelu |
+| `scripts/izvezi.mjs` | zbirka van, za svirač na mobitelu: `npm run izvezi` i jelovnik |
 | `scripts/posluga.mjs` | posluživanje zbirke s `/glazba/`, uz `Range` |
 | `scripts/preuzimac*.mjs` | poslovi preuzimanja, red čekanja, yt-dlp i ffmpeg |
 | `scripts/ikona.mjs` | `npm run ikona`: znak u ikonu programa |
@@ -208,7 +218,8 @@ pritom nosi **sam uređaj**, u IndexedDB, pa ne treba ni upaljeno računalo.
 Zato ondje, umjesto tipke **Dodaj pjesmu**, u gornjoj traci stoji **Zbirka**. Put je
 uvijek isti:
 
-1. na računalu `npm run izvezi`, pa se dobivena mapa prenese na mobitel,
+1. na računalu `npm run izvezi`, ili **Lucify → Izvoz za mobitel…** u samom programu,
+   pa se dobivena mapa prenese na mobitel,
 2. u Lucifyju na mobitelu **Zbirka → Odaberi mapu**,
 3. dodati Lucify na početni zaslon.
 

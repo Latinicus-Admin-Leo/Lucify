@@ -18,6 +18,7 @@ import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import elektronskiNadograditelj from "electron-updater";
 import { pokreniPosluzitelj } from "./posluzitelj.mjs";
+import { izvezi } from "../scripts/izvezi.mjs";
 
 /* `electron-updater` je CommonJS, pa iz njega izlazi jedan predmet, a ne
    imenovani izvozi. Odatle ovaj rastav. */
@@ -250,6 +251,72 @@ async function otvori() {
   slozJelovnik(zbirka);
 }
 
+/** Je li izvoz u tijeku: dva odjednom pisala bi u istu mapu. */
+let izvozTece = false;
+
+/**
+ * Izvoz zbirke za mobitel, iz jelovnika.
+ *
+ * Dosad je to radila samo naredba `npm run izvezi`, a nje u gotovom programu
+ * nema: tko je Lucify samo instalirao, nema ni mape projekta ni Nodea, pa
+ * zbirku nije imao kako prenijeti na mobitel. Sada radi i ondje, jer `scripts/`
+ * i ffmpeg ionako putuju s programom.
+ *
+ * @param {string} zbirka
+ */
+async function izvozZaMobitel(zbirka) {
+  if (izvozTece || !prozor) return;
+
+  const izbor = await dialog.showOpenDialog(prozor, {
+    title: "Kamo izvesti zbirku",
+    defaultPath: path.join(app.getPath("music"), "Lucify za mobitel"),
+    buttonLabel: "Izvezi ovamo",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (izbor.canceled || !izbor.filePaths[0]) return;
+  const kamo = izbor.filePaths[0];
+
+  izvozTece = true;
+  try {
+    const r = await izvezi({
+      korijen: zbirka,
+      kamo,
+      /* Napredak ide u traku sustava, pod ikonu programa: izvoz od sto pedeset
+         pjesama traje desetak sekunda, a bez ijednoga znaka izgledao bi kao da
+         se ništa ne događa. */
+      naNapredak: (n) => {
+        if (prozor) prozor.setProgressBar(n.gotovo / n.ukupno);
+      },
+    });
+    if (prozor) prozor.setProgressBar(-1);
+
+    const mb = Math.round(r.bajtova / (1024 * 1024));
+    const odgovor = await dialog.showMessageBox(prozor, {
+      type: r.greske.length ? "warning" : "info",
+      message: "Izvezeno " + (r.napisano + r.preskoceno) + " od " + r.ukupno + ", " + mb + " MB.",
+      detail:
+        (r.preskoceno
+          ? r.preskoceno + " je već stajalo ondje, pa se nije pisalo iznova.\n\n"
+          : "") +
+        "Prenesi ovu mapu na mobitel, pa ondje u Lucifyju: Zbirka \u2192 Odaberi mapu." +
+        (r.greske.length ? "\n\nNije izašlo: " + r.greske.length + "." : ""),
+      buttons: ["Otvori mapu", "U redu"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (odgovor.response === 0) shell.openPath(kamo);
+  } catch (greska) {
+    if (prozor) prozor.setProgressBar(-1);
+    await dialog.showMessageBox(prozor, {
+      type: "warning",
+      message: "Izvoz nije uspio.",
+      detail: String((greska && /** @type {any} */ (greska).message) || greska),
+    });
+  } finally {
+    izvozTece = false;
+  }
+}
+
 /**
  * Sustavski jelovnik na zahtjev stranice.
  *
@@ -296,6 +363,11 @@ function slozJelovnik(zbirka) {
             app.relaunch();
             app.exit(0);
           },
+        },
+        { type: "separator" },
+        {
+          label: "Izvoz za mobitel…",
+          click: () => izvozZaMobitel(zbirka),
         },
         { type: "separator" },
         {
