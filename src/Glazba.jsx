@@ -14,6 +14,7 @@ import {
   Download,
   FolderInput,
   Heart,
+  Globe,
   Library,
   ListPlus,
   Link2,
@@ -37,6 +38,7 @@ import * as svirac from "./glazba-svirac.mjs";
 import { KORIJEN, mmss, odbroj } from "./glazba-svirac.mjs";
 import { NA_UREDAJU, omotAdresa, zbirkaUredaja } from "./glazba-izvor.mjs";
 import Znak from "./Znak.jsx";
+import { jezikStanje, pjesama, prevoditelj } from "./jezik.mjs";
 import "./glazba.css";
 
 /**
@@ -156,12 +158,12 @@ function padez(n, jedan, dva, pet) {
 const MJERILA = [5, 15, 30, 45, 60, 90];
 
 /** Trajanje mjerača riječima: „30 minuta”, „1 sat i 30 minuta”. @param {number} m */
-function trajanjeRijecju(m) {
+function trajanjeRijecju(m, jezik) {
   const h = Math.floor(m / 60);
   const o = m % 60;
-  const sati = h ? h + " " + padez(h, "sat", "sata", "sati") : "";
-  const minute = o ? o + " " + padez(o, "minuta", "minute", "minuta") : "";
-  if (sati && minute) return sati + " i " + minute;
+  const sati = h ? h + " " + (jezik === "en" ? (h === 1 ? "hour" : "hours") : padez(h, "sat", "sata", "sati")) : "";
+  const minute = o ? o + " " + (jezik === "en" ? (o === 1 ? "minute" : "minutes") : padez(o, "minuta", "minute", "minuta")) : "";
+  if (sati && minute) return sati + (jezik === "en" ? " and " : " i ") + minute;
   return sati || minute;
 }
 
@@ -252,6 +254,11 @@ function Klizac({ vrijednost, najvise, naPromjenu, oznaka, razred, korak }) {
 }
 
 export default function Glazba() {
+  /* Jezik stoji izvan Reacta, kao i svirač: traže ga i ostali okviri, a mijenja
+     se rijetko. Odavde se samo gleda i prebacuje. */
+  const jezik = useSyncExternalStore(jezikStanje.prati, jezikStanje.stanje, jezikStanje.stanje);
+  const t = useMemo(() => prevoditelj(jezik), [jezik]);
+
   const [zbirka, setZbirka] = useState(/** @type {any} */ (null));
   const [ucitavam, setUcitavam] = useState(true);
 
@@ -412,13 +419,13 @@ export default function Glazba() {
   const police = useMemo(() => {
     /** @type {{ id: string, naslov: string, vrsta: string, pjesme: string[] }[]} */
     const out = [
-      { id: "srca", naslov: "Označeno srcem", vrsta: "srca", pjesme: srca },
-      { id: "sve", naslov: "Sve pjesme", vrsta: "sve", pjesme: sve.map((p) => p.id) },
+      { id: "srca", naslov: t("Označeno srcem"), vrsta: "srca", pjesme: srca },
+      { id: "sve", naslov: t("Sve pjesme"), vrsta: "sve", pjesme: sve.map((p) => p.id) },
     ];
     for (const l of liste) out.push({ ...l, vrsta: "lista" });
     for (const p of (zbirka && zbirka.police) || []) out.push({ ...p, vrsta: "izvodac" });
     return out;
-  }, [srca, sve, liste, zbirka]);
+  }, [srca, sve, liste, zbirka, t]);
 
   const viđene = useMemo(() => {
     const n = fold(traziZbirku.trim());
@@ -574,8 +581,8 @@ export default function Glazba() {
    */
   const zatraziPopis = useCallback((pocetne) => {
     setNoviPopisZa(pocetne || []);
-    setNovoIme("Moj popis");
-  }, []);
+    setNovoIme(t("Moj popis"));
+  }, [t]);
 
   const napraviPopis = useCallback(() => {
     const naslov = novoIme.trim();
@@ -654,11 +661,11 @@ export default function Glazba() {
       <button
         type="button"
         className={"gdodajtipka" + (razred ? " " + razred : "")}
-        aria-label="Dodaj pjesmu"
+        aria-label={t("Dodaj pjesmu")}
         onClick={() => setDodajOtvoren(true)}
       >
         <ListPlus size={17} aria-hidden="true" />
-        <span>Dodaj pjesmu</span>
+        <span>{t("Dodaj pjesmu")}</span>
       </button>
     ) : null;
 
@@ -668,11 +675,11 @@ export default function Glazba() {
       <button
         type="button"
         className={"gdodajtipka" + (razred ? " " + razred : "")}
-        aria-label="Zbirka na uređaju"
+        aria-label={t("Zbirka na uređaju")}
         onClick={() => setUvozOtvoren(true)}
       >
         <FolderInput size={17} aria-hidden="true" />
-        <span>Zbirka</span>
+        <span>{t("Zbirka")}</span>
       </button>
     ) : null;
 
@@ -681,7 +688,7 @@ export default function Glazba() {
       <div className="glazba">
         <div />
         <div className="gporuka">
-          <p>Otvaram zbirku…</p>
+          <p>{t("Otvaram zbirku…")}</p>
         </div>
         <div />
         {okvirDodaj}
@@ -706,7 +713,7 @@ export default function Glazba() {
       <button
         type="button"
         className={"gporedaj" + (razred ? " " + razred : "") + (on ? " on" : "")}
-        aria-label={"Poredaj po: " + ime + (on && !silazno ? ", od najmanjega" : "")}
+        aria-label={t("Poredaj po: ") + ime + (on && !silazno ? ", od najmanjega" : "")}
         onClick={() => {
           if (on) setSilazno((v) => !v);
           else {
@@ -742,7 +749,7 @@ export default function Glazba() {
           <button
             type="button"
             className="gikona gjelovniktipka"
-            aria-label="Jelovnik"
+            aria-label={t("Jelovnik")}
             onClick={() => {
               fetch("/jelovnik", { method: "POST" }).catch(() => {
                 /* Nema li poslužitelja, nema ni jelovnika; Alt i dalje radi. */
@@ -755,7 +762,7 @@ export default function Glazba() {
         <button
           type="button"
           className="gikona zbirkatipka"
-          aria-label="Zbirka"
+          aria-label={t("Zbirka")}
           onClick={() => setZbirkaOtvorena((v) => !v)}
         >
           <ListMusic size={19} aria-hidden="true" />
@@ -765,8 +772,8 @@ export default function Glazba() {
           <input
             type="search"
             value={trazi}
-            placeholder="Što želiš slušati?"
-            aria-label="Traži po zbirci"
+            placeholder={t("Što želiš slušati?")}
+            aria-label={t("Traži po zbirci")}
             autoComplete="off"
             onChange={(e) => {
               setTrazi(e.target.value);
@@ -775,14 +782,27 @@ export default function Glazba() {
           />
         </label>
         <div className="desno">
+          {/* Jezik: dvije riječi, pa nema izbornika nego tipka koja ih
+              izmjenjuje. Piše ono na što se prelazi, a ne ono što je sada, jer
+              se u tipku gleda kad se hoće drugo. */}
+          <button
+            type="button"
+            className="gikona gjeziktipka"
+            aria-label={jezik === "hr" ? "Switch to English" : "Prebaci na hrvatski"}
+            title={jezik === "hr" ? "Switch to English" : "Prebaci na hrvatski"}
+            onClick={() => jezikStanje.postavi(jezikStanje.drugi())}
+          >
+            <Globe size={18} aria-hidden="true" />
+            <span aria-hidden="true">{jezik === "hr" ? "EN" : "HR"}</span>
+          </button>
           <button
             type="button"
             className="gdodajtipka"
-            aria-label="Poveznice"
+            aria-label={t("Poveznice")}
             onClick={() => setVezeOtvorene(true)}
           >
             <Link2 size={17} aria-hidden="true" />
-            <span>Poveznice</span>
+            <span>{t("Poveznice")}</span>
           </button>
           {tipkaDodaj()}
           {tipkaUvoz()}
@@ -796,17 +816,17 @@ export default function Glazba() {
               href={IZDANJA}
               target="_blank"
               rel="noreferrer"
-              aria-label="Lucify za računalo"
+              aria-label={t("Lucify za računalo")}
             >
               <Download size={17} aria-hidden="true" />
-              <span>Za računalo</span>
+              <span>{t("Za računalo")}</span>
             </a>
           ) : null}
           <button
             type="button"
             className="gikona gplocatipka"
             aria-pressed={panel}
-            aria-label="Ploča sa strane"
+            aria-label={t("Ploča sa strane")}
             onClick={() => setPanel((v) => !v)}
           >
             <PanelRight size={19} aria-hidden="true" />
@@ -823,14 +843,14 @@ export default function Glazba() {
           }}
         />
 
-        <nav className="gzbirka" aria-label="Zbirka">
+        <nav className="gzbirka" aria-label={t("Zbirka")}>
           <div className="gzglava">
             <ListMusic size={18} aria-hidden="true" />
-            Tvoja zbirka
+            {t("Tvoja zbirka")}
             <button
               type="button"
               className="novi"
-              aria-label="Novi popis"
+              aria-label={t("Novi popis")}
               onClick={() => zatraziPopis()}
             >
               <Plus size={18} aria-hidden="true" />
@@ -839,9 +859,9 @@ export default function Glazba() {
 
           <div className="gfiltar">
             {[
-              ["sve", "Sve"],
-              ["liste", "Popisi"],
-              ["izvodaci", "Izvođači"],
+              ["sve", t("Sve")],
+              ["liste", t("Popisi")],
+              ["izvodaci", t("Izvođači")],
             ].map(([id, ime]) => (
               <button
                 key={id}
@@ -859,8 +879,8 @@ export default function Glazba() {
             <input
               type="search"
               value={traziZbirku}
-              placeholder="Traži u zbirci"
-              aria-label="Traži u zbirci"
+              placeholder={t("Traži u zbirci")}
+              aria-label={t("Traži u zbirci")}
               autoComplete="off"
               onChange={(e) => setTraziZbirku(e.target.value)}
             />
@@ -889,14 +909,14 @@ export default function Glazba() {
                   <span>
                     <b>{p.naslov}</b>
                     <span>
-                      {p.vrsta === "izvodac" ? "Izvođač" : "Popis"} &middot; {p.pjesme.length}{" "}
-                      {padez(p.pjesme.length, "pjesma", "pjesme", "pjesama")}
+                      {p.vrsta === "izvodac" ? t("Izvođač") : t("Popis")} &middot; {p.pjesme.length}{" "}
+                      {pjesama(p.pjesme.length, jezik)}
                     </span>
                   </span>
                 </button>
               );
             })}
-            {viđene.length === 0 ? <p className="gprazno">Ništa pod tim imenom.</p> : null}
+            {viđene.length === 0 ? <p className="gprazno">{t("Ništa pod tim imenom.")}</p> : null}
           </div>
         </nav>
 
@@ -907,12 +927,12 @@ export default function Glazba() {
               mozaik={polica.vrsta === "izvodac" ? mozaik.slice(0, 1) : mozaik}
             />
             <div className="gnatpisi">
-              <div className="vrsta">{polica.vrsta === "izvodac" ? "Izvođač" : "Popis"}</div>
+              <div className="vrsta">{polica.vrsta === "izvodac" ? t("Izvođač") : t("Popis")}</div>
               <h1>{polica.naslov}</h1>
               <div className="mjere">
                 <b>Lucify</b>
                 <span className="tocka">&middot;</span>
-                {prikazane.length} {padez(prikazane.length, "pjesma", "pjesme", "pjesama")}
+                {prikazane.length} {pjesama(prikazane.length, jezik)}
                 {trajanjePolice ? (
                   <>
                     <span className="tocka">&middot;</span>
@@ -927,7 +947,7 @@ export default function Glazba() {
             <button
               type="button"
               className="gpusti"
-              aria-label={svira ? "Zaustavi" : "Pusti"}
+              aria-label={svira ? t("Zaustavi") : t("Pusti")}
               disabled={!prikazane.length}
               onClick={() => {
                 const isti = sada && prikazane.some((p) => p.id === sada.id) && red.length;
@@ -941,7 +961,7 @@ export default function Glazba() {
               type="button"
               className="gikona"
               aria-pressed={mijesaj}
-              aria-label="Nasumično"
+              aria-label={t("Nasumično")}
               onClick={() => {
                 svirac.postaviMijesaj(!mijesaj);
               }}
@@ -958,11 +978,11 @@ export default function Glazba() {
                 aria-expanded={!!mjeracOtvoren}
                 aria-label={
                   mjerac
-                    ? "Mjerač vremena, još " +
+                    ? t("Mjerač vremena, još ") +
                       (mjerac.kraj ? "do kraja pjesme" : odbroj(mjerac.ostalo))
-                    : "Mjerač vremena"
+                    : t("Mjerač vremena")
                 }
-                title="Zaustavi glazbu nakon zadanog vremena"
+                title={t("Zaustavi glazbu nakon zadanog vremena")}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (mjeracOtvoren) {
@@ -1006,10 +1026,10 @@ export default function Glazba() {
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <h6>Zaustavi glazbu nakon</h6>
+                  <h6>{t("Zaustavi glazbu nakon")}</h6>
                   {MJERILA.map((m) => (
                     <button key={m} type="button" onClick={() => postaviMjerac(m)}>
-                      {trajanjeRijecju(m)}
+                      {trajanjeRijecju(m, jezik)}
                     </button>
                   ))}
                   <button
@@ -1020,7 +1040,7 @@ export default function Glazba() {
                       setMjeracOtvoren(null);
                     }}
                   >
-                    Do kraja pjesme
+                    {t("Do kraja pjesme")}
                   </button>
                   <hr />
                   {/* Vlastito vrijeme, jer šest ponuđenih trajanja ne pogađa
@@ -1039,11 +1059,11 @@ export default function Glazba() {
                       max="600"
                       inputMode="numeric"
                       value={vlastito}
-                      aria-label="Vlastito vrijeme u minutama"
+                      aria-label={t("Vlastito vrijeme u minutama")}
                       onChange={(e) => setVlastito(e.target.value)}
                     />
                     <span>min</span>
-                    <button type="submit">Postavi</button>
+                    <button type="submit">{t("Postavi")}</button>
                   </form>
                   {mjerac ? (
                     <>
@@ -1055,7 +1075,7 @@ export default function Glazba() {
                           setMjeracOtvoren(null);
                         }}
                       >
-                        Isključi mjerač
+                        {t("Isključi mjerač")}
                       </button>
                     </>
                   ) : null}
@@ -1067,10 +1087,10 @@ export default function Glazba() {
           <div className="gtablica">
             <div className="gredak gzaglavljeredka">
               <span className="gbroj">#</span>
-              {zaglavlje("naslov", "Naslov")}
-              <span className="stupac">Razdoblje i izvor</span>
-              {zaglavlje("dodano", "Dodano", "dodano")}
-              {zaglavlje("trajanje", "Trajanje", "kraj")}
+              {zaglavlje("naslov", t("Naslov"))}
+              <span className="stupac">{t("Razdoblje i izvor")}</span>
+              {zaglavlje("dodano", t("Dodano"), "dodano")}
+              {zaglavlje("trajanje", t("Trajanje"), "kraj")}
             </div>
 
             {prikazane.map((p, i) => {
@@ -1099,7 +1119,7 @@ export default function Glazba() {
                   <button
                     type="button"
                     className="gbroj"
-                    aria-label={"Pusti " + p.naslov}
+                    aria-label={t("Pusti ") + p.naslov}
                     onClick={() => {
                       if (jeSada) prekidac();
                       else pusti(prikazane.map((x) => x.id), i);
@@ -1148,7 +1168,7 @@ export default function Glazba() {
                          dalje svira, a klik bi vodio u prazan zaslon. */
                       <span className="gizvor nema">YouTube</span>
                     ) : (
-                      "Datoteka"
+                      t("Datoteka")
                     )}
                   </span>
 
@@ -1158,7 +1178,7 @@ export default function Glazba() {
                     <button
                       type="button"
                       className={"gsrce" + (srca.includes(p.id) ? " puno" : "")}
-                      aria-label={srca.includes(p.id) ? "Makni iz srca" : "Označi srcem"}
+                      aria-label={srca.includes(p.id) ? t("Makni iz srca") : t("Označi srcem")}
                       aria-pressed={srca.includes(p.id)}
                       onClick={() => srce(p.id)}
                     >
@@ -1168,7 +1188,7 @@ export default function Glazba() {
                     <button
                       type="button"
                       className="gvise"
-                      aria-label="Više o pjesmi"
+                      aria-label={t("Više o pjesmi")}
                       aria-expanded={jelovnik && jelovnik.id === p.id ? "true" : "false"}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1189,9 +1209,9 @@ export default function Glazba() {
 
             {prikazane.length === 0 ? (
               trazi.trim() ? (
-                <p className="gprazno">{"Ništa za „" + trazi.trim() + "”."}</p>
+                <p className="gprazno">{t("Ništa za „") + trazi.trim() + "”."}</p>
               ) : sve.length ? (
-                <p className="gprazno">U ovom popisu još nema ničega.</p>
+                <p className="gprazno">{t("U ovom popisu još nema ničega.")}</p>
               ) : (
                 /* Prazna zbirka objašnjava se ovdje, unutar popisa, a ne preko
                    cijeloga zaslona: gornja traka mora ostati vidljiva, jer na
@@ -1206,19 +1226,19 @@ export default function Glazba() {
                         samo prekopirati, a Lucify ih pokupi pri idućem otvaranju.
                       </p>
                       <p>
-                        Najlakše ide poveznicom s YouTubea, tipkom <b>Dodaj pjesmu</b> gore.
+                        {t("Najlakše ide poveznicom s YouTubea, tipkom")} <b>{t("Dodaj pjesmu")}</b> gore.
                       </p>
                     </>
                   ) : PREUZIMAC ? (
                     <>
                       <p>
-                        Zbirka je prazna. Snimke stoje u <code>Glazba/Zvuk/</code>, a ta mapa
+                        {t("Zbirka je prazna. Snimke stoje u")} <code>Glazba/Zvuk/</code>, a ta mapa
                         nije u gitu, jer je glazba tuđe autorsko djelo.
                       </p>
                       <p>
                         <code>npm run glazba -- --uvezi &quot;putanja/do/mape&quot;</code>
                       </p>
-                      <p>Ili jednu po jednu, tipkom <b>Dodaj pjesmu</b> gore.</p>
+                      <p>{t("Ili jednu po jednu, tipkom")} <b>{t("Dodaj pjesmu")}</b> gore.</p>
                     </>
                   ) : (
                     <>
@@ -1228,8 +1248,8 @@ export default function Glazba() {
                         objavljenu stranicu. Zbirku nosi sam uređaj, i unese se jednom.
                       </p>
                       <p>
-                        Mapu slaže Lucify za računalo, naredbom <code>npm run izvezi</code>.
-                        Prenesi je na ovaj uređaj i otvori <b>Zbirka</b> gore.
+                        {t("Mapu slaže Lucify za računalo, naredbom")} <code>npm run izvezi</code>.
+                        Prenesi je na ovaj uređaj i otvori <b>{t("Zbirka")}</b> gore.
                       </p>
                       <p className="gpraznotipke">
                         {tipkaUvoz()}
@@ -1239,11 +1259,11 @@ export default function Glazba() {
                           onClick={() => setVezeOtvorene(true)}
                         >
                           <Link2 size={17} aria-hidden="true" />
-                          <span>Otvori poveznice</span>
+                          <span>{t("Otvori poveznice")}</span>
                         </button>
                         <a className="gdodajtipka" href={IZDANJA} target="_blank" rel="noreferrer">
                           <Download size={17} aria-hidden="true" />
-                          <span>Lucify za računalo</span>
+                          <span>{t("Lucify za računalo")}</span>
                         </a>
                       </p>
                     </>
@@ -1255,9 +1275,9 @@ export default function Glazba() {
         </main>
 
         {panel ? (
-          <aside className="gpanel" aria-label="Sad svira">
+          <aside className="gpanel" aria-label={t("Sad svira")}>
             <div className="gvrhploce">
-              <h2>Sad svira</h2>
+              <h2>{t("Sad svira")}</h2>
             </div>
             {sada ? (
               <>
@@ -1267,14 +1287,14 @@ export default function Glazba() {
 
                 {sada.razdoblje || sada.biljeska ? (
                   <div className="gkartica">
-                    <h3>Uz slušanje</h3>
+                    <h3>{t("Uz slušanje")}</h3>
                     {sada.razdoblje ? <span className="rub">{sada.razdoblje}</span> : null}
                     {sada.biljeska ? <p>{sada.biljeska}</p> : null}
                   </div>
                 ) : null}
 
                 <div className="gkartica">
-                  <h3>Zapis</h3>
+                  <h3>{t("Zapis")}</h3>
                   <p>{sada.izvorniNaslov}</p>
                   {sada.yt && mreza ? (
                     <p style={{ marginTop: 8 }}>
@@ -1284,7 +1304,7 @@ export default function Glazba() {
                         target="_blank"
                         rel="noreferrer noopener"
                       >
-                        Otvori izvornik na YouTubeu
+                        {t("Otvori izvornik na YouTubeu")}
                       </a>
                     </p>
                   ) : null}
@@ -1318,7 +1338,7 @@ export default function Glazba() {
                 })()}
               </>
             ) : (
-              <p className="gprazno">Ništa ne svira. Odaberi pjesmu s popisa.</p>
+              <p className="gprazno">{t("Ništa ne svira. Odaberi pjesmu s popisa.")}</p>
             )}
           </aside>
         ) : null}
@@ -1335,7 +1355,7 @@ export default function Glazba() {
           <button
             type="button"
             className="gotvorisvirac"
-            aria-label="Otvori svirač"
+            aria-label={t("Otvori svirač")}
             onClick={() => setPuniSvirac(true)}
           />
         ) : null}
@@ -1344,12 +1364,12 @@ export default function Glazba() {
           <button
             type="button"
             className="gikona gspusti"
-            aria-label="Zatvori svirač"
+            aria-label={t("Zatvori svirač")}
             onClick={() => setPuniSvirac(false)}
           >
             <ChevronDown size={24} aria-hidden="true" />
           </button>
-          <span className="gpunislog">Sad svira</span>
+          <span className="gpunislog">{t("Sad svira")}</span>
         </div>
 
         <div className="gsada">
@@ -1363,7 +1383,7 @@ export default function Glazba() {
               <button
                 type="button"
                 className={"gsrce" + (srca.includes(sada.id) ? " puno" : "")}
-                aria-label={srca.includes(sada.id) ? "Makni iz srca" : "Označi srcem"}
+                aria-label={srca.includes(sada.id) ? t("Makni iz srca") : t("Označi srcem")}
                 aria-pressed={srca.includes(sada.id)}
                 onClick={() => srce(sada.id)}
               >
@@ -1379,7 +1399,7 @@ export default function Glazba() {
               type="button"
               className="gikona"
               aria-pressed={mijesaj}
-              aria-label="Nasumično"
+              aria-label={t("Nasumično")}
               onClick={() => {
                 svirac.postaviMijesaj(!mijesaj);
               }}
@@ -1389,7 +1409,7 @@ export default function Glazba() {
             <button
               type="button"
               className="gikona"
-              aria-label="Prethodna"
+              aria-label={t("Prethodna")}
               disabled={!red.length}
               onClick={() => pomakni(-1)}
             >
@@ -1398,7 +1418,7 @@ export default function Glazba() {
             <button
               type="button"
               className="gsvira"
-              aria-label={svira ? "Zaustavi" : "Pusti"}
+              aria-label={svira ? t("Zaustavi") : t("Pusti")}
               onClick={prekidac}
             >
               {svira ? (
@@ -1410,7 +1430,7 @@ export default function Glazba() {
             <button
               type="button"
               className="gikona"
-              aria-label="Sljedeća"
+              aria-label={t("Sljedeća")}
               disabled={!red.length}
               onClick={() => pomakni(1)}
             >
@@ -1422,10 +1442,10 @@ export default function Glazba() {
               aria-pressed={ponovi !== "ne"}
               aria-label={
                 ponovi === "ne"
-                  ? "Ponavljanje isključeno"
+                  ? t("Ponavljanje isključeno")
                   : ponovi === "sve"
-                    ? "Ponavljaj popis"
-                    : "Ponavljaj pjesmu"
+                    ? t("Ponavljaj popis")
+                    : t("Ponavljaj pjesmu")
               }
               onClick={() => svirac.sljedecePonavljanje()}
             >
@@ -1442,7 +1462,7 @@ export default function Glazba() {
             <Klizac
               vrijednost={Math.min(vrijeme, trajanje)}
               najvise={trajanje}
-              oznaka="Mjesto u pjesmi"
+              oznaka={t("Mjesto u pjesmi")}
               naPromjenu={(v) => svirac.premotaj(v)}
             />
             <span>{mmss(trajanje)}</span>
@@ -1453,7 +1473,7 @@ export default function Glazba() {
           <button
             type="button"
             className="gikona"
-            aria-label={tiho ? "Uključi zvuk" : "Utišaj"}
+            aria-label={tiho ? t("Uključi zvuk") : t("Utišaj")}
             onClick={() => svirac.prigusi()}
           >
             {tiho || glasnoca === 0 ? (
@@ -1468,7 +1488,7 @@ export default function Glazba() {
             razred="gglasnoca"
             vrijednost={tiho ? 0 : glasnoca * 100}
             najvise={100}
-            oznaka="Glasnoća"
+            oznaka={t("Glasnoća")}
             naPromjenu={(v) => svirac.postaviGlasnocu(v / 100)}
           />
         </div>
@@ -1478,7 +1498,7 @@ export default function Glazba() {
           nema gdje drugdje uhvatiti: zbirka je ondje ladica, a svirač kartica.
           Tri odredišta su tri stvari koje Lucify doista ima, pa traka ne
           obećava sobe kojih nema. */}
-      <nav className="gtraka" aria-label="Glavno kretanje">
+      <nav className="gtraka" aria-label={t("Glavno kretanje")}>
         <button
           type="button"
           className={"gtrakatipka" + (zbirkaOtvorena ? " on" : "")}
@@ -1489,7 +1509,7 @@ export default function Glazba() {
           }}
         >
           <Library size={21} aria-hidden="true" />
-          <span>Zbirka</span>
+          <span>{t("Zbirka")}</span>
         </button>
         <button
           type="button"
@@ -1501,7 +1521,7 @@ export default function Glazba() {
           }}
         >
           <ListMusic size={21} aria-hidden="true" />
-          <span>Popis</span>
+          <span>{t("Popis")}</span>
         </button>
         <button
           type="button"
@@ -1514,7 +1534,7 @@ export default function Glazba() {
           }}
         >
           <Disc3 size={21} aria-hidden="true" />
-          <span>Sad svira</span>
+          <span>{t("Sad svira")}</span>
         </button>
       </nav>
 
@@ -1528,8 +1548,8 @@ export default function Glazba() {
               napraviPopis();
             }}
           >
-            <h2>Novi popis</h2>
-            <label htmlFor="gnovoime">Kako se zove?</label>
+            <h2>{t("Novi popis")}</h2>
+            <label htmlFor="gnovoime">{t("Kako se zove?")}</label>
             <input
               id="gnovoime"
               value={novoIme}
@@ -1540,15 +1560,15 @@ export default function Glazba() {
             {noviPopisZa.length ? (
               <p className="uz">
                 U njega odmah ide {noviPopisZa.length}{" "}
-                {padez(noviPopisZa.length, "pjesma", "pjesme", "pjesama")}.
+                {pjesama(noviPopisZa.length, jezik)}.
               </p>
             ) : null}
             <div className="gdno">
               <button type="button" className="blijedo" onClick={() => setNoviPopisZa(null)}>
-                Odustani
+                {t("Odustani")}
               </button>
               <button type="submit" className="glavna" disabled={!novoIme.trim()}>
-                Napravi
+                {t("Napravi")}
               </button>
             </div>
           </form>
@@ -1572,10 +1592,10 @@ export default function Glazba() {
               setJelovnik(null);
             }}
           >
-            {srca.includes(jelovnik.id) ? "Makni iz srca" : "Označi srcem"}
+            {srca.includes(jelovnik.id) ? t("Makni iz srca") : t("Označi srcem")}
           </button>
           <hr />
-          <h6>Dodaj u popis</h6>
+          <h6>{t("Dodaj u popis")}</h6>
           {liste.map((l) => (
             <button
               key={l.id}
@@ -1595,7 +1615,7 @@ export default function Glazba() {
               setJelovnik(null);
             }}
           >
-            Novi popis…
+            {t("Novi popis…")}
           </button>
           {otvoreno.vrsta === "lista" ? (
             <>
@@ -1607,7 +1627,7 @@ export default function Glazba() {
                   setJelovnik(null);
                 }}
               >
-                Makni iz ovog popisa
+                {t("Makni iz ovog popisa")}
               </button>
             </>
           ) : null}
@@ -1619,7 +1639,7 @@ export default function Glazba() {
                 target="_blank"
                 rel="noreferrer noopener"
               >
-                Otvori na YouTubeu
+                {t("Otvori na YouTubeu")}
               </a>
             </>
           ) : null}

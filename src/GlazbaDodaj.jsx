@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Play, X } from "lucide-react";
+import { jezikStanje, prevoditelj } from "./jezik.mjs";
 import { procitajVeze } from "./glazba-veze.mjs";
 
 /**
@@ -18,6 +19,9 @@ import { procitajVeze } from "./glazba-veze.mjs";
  * @param {{ naZatvori: () => void, naDodano: () => void, naPusti?: (id: string) => void }} props
  */
 export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
+  const jezik = useSyncExternalStore(jezikStanje.prati, jezikStanje.stanje, jezikStanje.stanje);
+  const t = useMemo(() => prevoditelj(jezik), [jezik]);
+
   const [veze, setVeze] = useState("");
   const [stanje, setStanje] = useState(/** @type {any} */ (null));
   const [kakvoca, setKakvoca] = useState("visoka");
@@ -74,10 +78,10 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
           alati: tijelo.alati,
         }));
       }
-      if (!odgovor.ok) setGreska(tijelo.greska || { poruka: "Nov yt-dlp nije stigao." });
+      if (!odgovor.ok) setGreska(tijelo.greska || { poruka: t("Nov yt-dlp nije stigao.") });
     } catch (e) {
       setGreska({
-        poruka: "Nov yt-dlp nije stigao.",
+        poruka: t("Nov yt-dlp nije stigao."),
         detalj: e && /** @type {any} */ (e).message ? String(/** @type {any} */ (e).message) : "",
       });
     } finally {
@@ -132,7 +136,7 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
       });
       const podatci = await odgovor.json();
       if (!odgovor.ok) {
-        setGreska(podatci.greska || { poruka: "Preuzimač je odbio taj zahtjev." });
+        setGreska(podatci.greska || { poruka: t("Preuzimač je odbio taj zahtjev.") });
         return;
       }
       /* Prihvaćeno odlazi iz polja, a odbijeno ostaje, da se vidi što nije prošlo. */
@@ -147,7 +151,7 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
         return kopija;
       });
     } catch {
-      setGreska({ poruka: "Ne mogu doći do preuzimača. Radi li još `npm run dev`?" });
+      setGreska({ poruka: t("Ne mogu doći do preuzimača. Radi li još `npm run dev`?") });
     } finally {
       setSalje(false);
     }
@@ -175,23 +179,25 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
       <div
         className="gkutija gdploca"
         role="dialog"
-        aria-label="Dodaj pjesmu"
+        aria-label={t("Dodaj pjesmu")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="gdglava">
-          <h2>Dodaj pjesmu</h2>
-          <button type="button" className="gikona" aria-label="Zatvori" onClick={naZatvori}>
+          <h2>{t("Dodaj pjesmu")}</h2>
+          <button type="button" className="gikona" aria-label={t("Zatvori")} onClick={naZatvori}>
             <X size={18} aria-hidden="true" />
           </button>
         </div>
 
         <p className="uz">
-          Zalijepi poveznicu s YouTubea, jednu ili cijeli popis. Zvuk se preuzme, pretvori u
-          mp3 i odmah uđe u zbirku, pa je nađeš pod <b>Sve pjesme</b>.
+          {t(
+            "Zalijepi poveznicu s YouTubea, jednu ili cijeli popis. Zvuk se preuzme, pretvori u mp3 i odmah uđe u zbirku, pa je nađeš pod",
+          )}{" "}
+          <b>{t("Sve pjesme")}</b>.
         </p>
 
         <label className="gdoznaka" htmlFor="gdveze">
-          Poveznice
+          {t("Poveznice")}
         </label>
         <textarea
           id="gdveze"
@@ -204,13 +210,13 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
           onChange={(e) => setVeze(e.target.value)}
         />
 
-        <p className="gdmjera">{mjera(procitano)}</p>
+        <p className="gdmjera">{mjera(procitano, jezik)}</p>
 
         {procitano.greske.length ? (
           <ul className="gdodbijene">
             {procitano.greske.slice(0, 5).map((/** @type {any} */ g, i) => (
               <li key={i}>
-                <code>{skrati(g.upisano, 44)}</code> {g.razlog}
+                <code>{skrati(g.upisano, 44)}</code> {t(g.razlog)}
               </li>
             ))}
           </ul>
@@ -223,10 +229,10 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
               type="button"
               className="gcip"
               aria-pressed={kakvoca === k.id}
-              title={k.opis}
+              title={t(k.opis)}
               onClick={() => setKakvoca(k.id)}
             >
-              {k.ime}
+              {t(k.ime)}
             </button>
           ))}
         </div>
@@ -241,21 +247,21 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
         {stanje && !stanje.ima ? (
           <p className="gdgreska">
             {stanje.nedostupan
-              ? "Preuzimač se ne javlja. On radi samo uz `npm run dev`."
-              : "Nedostaje " +
+              ? t("Preuzimač se ne javlja. On radi samo uz `npm run dev`.")
+              : t("Nedostaje ") +
                 [
                   stanje.alati && !stanje.alati.ytDlp.ima ? "yt-dlp" : null,
                   stanje.alati && !stanje.alati.ffmpeg.ima ? "ffmpeg" : null,
                 ]
                   .filter(Boolean)
-                  .join(" i ") +
-                ". Bez toga se ne može preuzimati."}
+                  .join(jezik === "en" ? " and " : " i ") +
+                t(". Bez toga se ne može preuzimati.")}
           </p>
         ) : null}
 
         <div className="gdno">
           <button type="button" className="blijedo" onClick={naZatvori}>
-            Zatvori
+            {t("Zatvori")}
           </button>
           <button
             type="button"
@@ -263,7 +269,7 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
             disabled={salje || !procitano.prihvacene.length || !(stanje && stanje.ima)}
             onClick={posalji}
           >
-            {salje ? "Šaljem…" : "Preuzmi"}
+            {salje ? t("Šaljem…") : t("Preuzmi")}
           </button>
         </div>
 
@@ -271,12 +277,12 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
           <div className="gdposlovi">
             <div className="gdvrhpopisa">
               <h3>
-                {uTijeku ? uTijeku + " u tijeku" : "Ništa se ne preuzima"}
-                {gotovih ? " · " + gotovih + " gotovo" : ""}
+                {uTijeku ? uTijeku + (jezik === "en" ? " running" : " u tijeku") : t("Ništa se ne preuzima")}
+                {gotovih ? " · " + gotovih + (jezik === "en" ? " done" : " gotovo") : ""}
               </h3>
               {gotovih ? (
                 <button type="button" className="gdveza" onClick={ocisti}>
-                  Očisti gotove
+                  {t("Očisti gotove")}
                 </button>
               ) : null}
             </div>
@@ -284,9 +290,9 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
               {poslovi.map((p) => (
                 <li key={p.id} className="gdposao">
                   <div className="gdredaknaslov">
-                    <span className="gdime">{p.naslov || "Čitam podatke…"}</span>
+                    <span className="gdime">{p.naslov || t("Čitam podatke…")}</span>
                     <span className="gdstanje" data-stanje={p.stanje}>
-                      {OPIS[p.stanje] || p.stanje}
+                      {t(OPIS[p.stanje] || p.stanje)}
                     </span>
                   </div>
                   <div className="gdsitno">
@@ -301,7 +307,7 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
                   <div className="gdredakgumbi">
                     {GOTOVI.includes(p.stanje) ? null : (
                       <button type="button" className="gdveza" onClick={() => odustani(p.id)}>
-                        Odustani
+                        {t("Odustani")}
                       </button>
                     )}
                     {p.pjesma && naPusti ? (
@@ -310,7 +316,7 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
                         className="gdveza gdpusti"
                         onClick={() => naPusti(p.pjesma.id)}
                       >
-                        <Play size={12} aria-hidden="true" /> Pusti
+                        <Play size={12} aria-hidden="true" /> {t("Pusti")}
                       </button>
                     ) : null}
                   </div>
@@ -329,7 +335,11 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
               iza Lucifyja ne stoji poslužitelj, jer ondje nema ni kamo. */}
           {stanje && !stanje.nedostupan ? (
             <button type="button" className="gdosvjezi" onClick={naOsvjezi} disabled={osvjezava}>
-              {osvjezava ? "dohvaćam…" : stanje.alati && stanje.alati.ytDlp.ima ? "osvježi yt-dlp" : "dohvati yt-dlp"}
+              {osvjezava
+                ? t("dohvaćam…")
+                : stanje.alati && stanje.alati.ytDlp.ima
+                  ? t("osvježi yt-dlp")
+                  : t("dohvati yt-dlp")}
             </button>
           ) : null}
         </p>
@@ -341,6 +351,9 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
 /** Stanja iza kojih se više ništa ne događa. */
 const GOTOVI = ["gotovo", "vec", "greska", "prekinuto"];
 
+/* Ovdje stoji hrvatski, a ne prijevod: rječnik se otvara tek u prikazu, jer
+   ovo je vani iz komponente, gdje jezika još nema. Isti su nizovi i ključevi u
+   `jezik.mjs`, pa se prevode na mjestu na kojem se ispisuju. */
 /** @type {Record<string, string>} */
 const OPIS = {
   ceka: "Čeka red",
@@ -357,13 +370,28 @@ const OPIS = {
  * Rečenica ispod polja: koliko je poveznica prepoznato dok se tipka.
  * @param {any} procitano
  */
-function mjera(procitano) {
+function mjera(procitano, jezik) {
   const dijelovi = [];
   const n = procitano.prihvacene.length;
-  if (n) dijelovi.push(n + " " + (n === 1 ? "poveznica" : n < 5 ? "poveznice" : "poveznica") + " spremno");
-  if (procitano.ponovljene) dijelovi.push(procitano.ponovljene + " ponovljeno, broji se jednom");
-  if (procitano.greske.length) dijelovi.push(procitano.greske.length + " neupotrebljivo");
-  return dijelovi.join(" · ") || "Zalijepi jednu poveznicu ili cijeli popis.";
+  if (n)
+    dijelovi.push(
+      jezik === "en"
+        ? n + (n === 1 ? " link ready" : " links ready")
+        : n + " " + (n === 1 ? "poveznica" : n < 5 ? "poveznice" : "poveznica") + " spremno",
+    );
+  if (procitano.ponovljene)
+    dijelovi.push(
+      procitano.ponovljene +
+        (jezik === "en" ? " repeated, counted once" : " ponovljeno, broji se jednom"),
+    );
+  if (procitano.greske.length)
+    dijelovi.push(procitano.greske.length + (jezik === "en" ? " unusable" : " neupotrebljivo"));
+  return (
+    dijelovi.join(" · ") ||
+    (jezik === "en"
+      ? "Paste one link, or a whole list of them."
+      : "Zalijepi jednu poveznicu ili cijeli popis.")
+  );
 }
 
 /**

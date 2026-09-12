@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Check, ChevronLeft, ChevronRight, Copy, X } from "lucide-react";
+import { jezikStanje, prevoditelj } from "./jezik.mjs";
 import { adresaSnimke } from "./glazba-veze.mjs";
 import { KORIJEN } from "./glazba-svirac.mjs";
 
@@ -31,6 +32,9 @@ const PO_STRANICI = 27;
  * @param {{ pjesme: any[], naZatvori: () => void }} props
  */
 export default function GlazbaPoveznice({ pjesme, naZatvori }) {
+  const jezik = useSyncExternalStore(jezikStanje.prati, jezikStanje.stanje, jezikStanje.stanje);
+  const t = useMemo(() => prevoditelj(jezik), [jezik]);
+
   const [preuzeto, setPreuzeto] = useState(/** @type {any[] | null} */ (null));
   const [stranica, setStranica] = useState(0);
   const [kopirano, setKopirano] = useState(false);
@@ -131,24 +135,28 @@ export default function GlazbaPoveznice({ pjesme, naZatvori }) {
       <div
         className="gkutija gpploca"
         role="dialog"
-        aria-label="Poveznice"
+        aria-label={t("Poveznice")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="gdglava">
-          <h2>Poveznice</h2>
-          <button type="button" className="gikona" aria-label="Zatvori" onClick={naZatvori}>
+          <h2>{t("Poveznice")}</h2>
+          <button type="button" className="gikona" aria-label={t("Zatvori")} onClick={naZatvori}>
             <X size={18} aria-hidden="true" />
           </button>
         </div>
 
         <p className="uz">
-          Cijela zbirka kao gole YouTube adrese, po {PO_STRANICI} odjednom. Kopiraj stranicu,
-          prijeđi na sljedeću, i zbirka je na mobitelu — bez ijednog megabajta glazbe na
-          objavljenoj stranici.
+          {jezik === "en"
+            ? "The whole collection as bare YouTube addresses, " +
+              PO_STRANICI +
+              " at a time. Copy a page, move to the next, and the collection is on your phone — without a single megabyte of music on the published site."
+            : "Cijela zbirka kao gole YouTube adrese, po " +
+              PO_STRANICI +
+              " odjednom. Kopiraj stranicu, prijeđi na sljedeću, i zbirka je na mobitelu — bez ijednog megabajta glazbe na objavljenoj stranici."}
         </p>
 
         {ucitava ? (
-          <p className="gpprazno">Otvaram popis…</p>
+          <p className="gpprazno">{t("Otvaram popis…")}</p>
         ) : !veze.length ? (
           <p className="gpprazno">
             Poveznica još nema. Zapisuju se u <code>public/poveznice.json</code> čim u zbirku
@@ -167,7 +175,7 @@ export default function GlazbaPoveznice({ pjesme, naZatvori }) {
                 <button
                   type="button"
                   className="gikona gplist"
-                  aria-label="Prethodna stranica"
+                  aria-label={t("Prethodna stranica")}
                   disabled={sada === 0}
                   onClick={() => pomakni(-1)}
                 >
@@ -179,7 +187,7 @@ export default function GlazbaPoveznice({ pjesme, naZatvori }) {
                 <button
                   type="button"
                   className="gikona gplist"
-                  aria-label="Sljedeća stranica"
+                  aria-label={t("Sljedeća stranica")}
                   disabled={sada >= ukupno - 1}
                   onClick={() => pomakni(1)}
                 >

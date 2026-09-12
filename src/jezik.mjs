@@ -170,6 +170,47 @@ const EN = {
   "Otvaram popis…": "Opening the list…",
   "Prethodna stranica": "Previous page",
   "Sljedeća stranica": "Next page",
+
+  /* ---------- kakvoća zvuka ---------- */
+  /* Imena dolaze s poslužitelja, iz `KAKVOCE`, pa se prevode pri ispisu. */
+  Manja: "Lower",
+  Srednja: "Medium",
+  Visoka: "High",
+  Najveća: "Highest",
+  "oko 115 kbps": "about 115 kbps",
+  "oko 165 kbps": "about 165 kbps",
+  "oko 190 kbps": "about 190 kbps",
+
+  /* ---------- zašto poveznica nije prošla ---------- */
+  "Oznaka snimke u toj poveznici ne valja.": "The video id in that link is not valid.",
+  "Zalijepi poveznicu s YouTubea.": "Paste a YouTube link.",
+  "To nije valjana mrežna adresa.": "That is not a valid web address.",
+  "Prima se samo http i https.": "Only http and https are accepted.",
+  "Prima se samo poveznica s YouTubea.": "Only YouTube links are accepted.",
+  "U toj kratkoj poveznici nema oznake snimke.": "That short link has no video id in it.",
+  "Toj poveznici nedostaje dio `v=`.": "That link is missing the `v=` part.",
+  "U toj poveznici nema oznake snimke.": "That link has no video id in it.",
+  "Popisi se ne primaju. Zalijepi jednu snimku.": "Playlists are not accepted. Paste a single video.",
+  "Ta poveznica ne pokazuje na jednu snimku.": "That link does not point at a single video.",
+
+  /* ---------- rečenice okvira „Dodaj pjesmu” ---------- */
+  "Zalijepi jednu poveznicu ili cijeli popis.": "Paste one link, or a whole list of them.",
+  "Preuzimač se ne javlja. On radi samo uz `npm run dev`.":
+    "The downloader does not answer. It only runs under `npm run dev`.",
+  ". Bez toga se ne može preuzimati.": ". Without it, nothing can be downloaded.",
+  "Zalijepi poveznicu s YouTubea, jednu ili cijeli popis. Zvuk se preuzme, pretvori u mp3 i odmah uđe u zbirku, pa je nađeš pod":
+    "Paste a YouTube link, one or a whole list. The audio is downloaded, turned into mp3 and goes straight into the collection, where you will find it under",
+  "osvježi yt-dlp": "refresh yt-dlp",
+  "dohvati yt-dlp": "fetch yt-dlp",
+  "dohvaćam…": "fetching…",
+
+  /* ---------- rečenice okvira „Zbirka” ---------- */
+  "Zbirka stoji na ovom uređaju i nigdje drugdje. Mapu slaže Lucify za računalo, naredbom":
+    "The collection lives on this device and nowhere else. The folder is made by Lucify for desktop, with",
+  "; prenesi je ovamo i odaberi je ovdje. Poslije toga glazba svira i bez mreže.":
+    "; bring it over and choose it here. After that the music plays with no network at all.",
+  zauzeto: "in use",
+  "Slažem zbirku…": "Filing the collection…",
 };
 
 /** @param {string} jezik @param {string} tekst */

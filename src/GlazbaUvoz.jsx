@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Eraser, FileArchive, FolderInput, Trash2, X } from "lucide-react";
 import {
   dajPopis,
@@ -11,6 +11,7 @@ import {
   visak,
 } from "./glazba-spremiste.mjs";
 import { zatvoriOmote } from "./glazba-izvor.mjs";
+import { jezikStanje, pjesama, prevoditelj, recenicaViska } from "./jezik.mjs";
 
 /**
  * Okvir „Zbirka”: mapa s računala u zbirku ovoga uređaja.
@@ -26,6 +27,9 @@ import { zatvoriOmote } from "./glazba-izvor.mjs";
  * @param {{ naZatvori: () => void, naUvezeno: () => void }} props
  */
 export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
+  const jezik = useSyncExternalStore(jezikStanje.prati, jezikStanje.stanje, jezikStanje.stanje);
+  const t = useMemo(() => prevoditelj(jezik), [jezik]);
+
   const [stanje, setStanje] = useState(/** @type {any} */ (null));
   const [radi, setRadi] = useState(false);
   const [napredak, setNapredak] = useState(/** @type {any} */ (null));
@@ -96,7 +100,7 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
       await osvjezi();
       naUvezeno();
     } catch (g) {
-      setGreska((g && g.message) || "Uvoz nije uspio.");
+      setGreska((g && g.message) || t("Uvoz nije uspio."));
     } finally {
       setRadi(false);
       setNapredak(null);
@@ -120,7 +124,7 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
       await osvjezi();
       naUvezeno();
     } catch (g) {
-      setGreska((g && g.message) || "Čišćenje nije uspjelo.");
+      setGreska((g && g.message) || t("Čišćenje nije uspjelo."));
     } finally {
       setRadi(false);
     }
@@ -142,7 +146,7 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
 
   const mjesto = stanje && stanje.mjesto;
   const suvisno = stanje && stanje.suvisno;
-  const oVisku = suvisno && suvisno.snimke.length ? sklop(suvisno.snimke.length) : null;
+  const oVisku = suvisno && suvisno.snimke.length ? recenicaViska(suvisno.snimke.length, jezik) : null;
   const ugradena =
     typeof window !== "undefined" &&
     window.matchMedia &&
@@ -153,15 +157,15 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
       <div
         className="gkutija gdploca"
         role="dialog"
-        aria-label="Zbirka na uređaju"
+        aria-label={t("Zbirka na uređaju")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="gdglava">
-          <h2>Zbirka</h2>
+          <h2>{t("Zbirka")}</h2>
           <button
             type="button"
             className="gikona"
-            aria-label="Zatvori"
+            aria-label={t("Zatvori")}
             disabled={radi}
             onClick={naZatvori}
           >
@@ -170,9 +174,11 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
         </div>
 
         <p className="uz">
-          Zbirka stoji na ovom uređaju i nigdje drugdje. Mapu slaže Lucify za računalo,
-          naredbom <code>npm run izvezi</code>; prenesi je ovamo i odaberi je ovdje. Poslije
-          toga glazba svira i bez mreže.
+          {t(
+            "Zbirka stoji na ovom uređaju i nigdje drugdje. Mapu slaže Lucify za računalo, naredbom",
+          )}{" "}
+          <code>npm run izvezi</code>
+          {t("; prenesi je ovamo i odaberi je ovdje. Poslije toga glazba svira i bez mreže.")}
         </p>
 
         {/* Što uređaj trenutačno ima. Dvije mjere, jer odgovaraju na dva
@@ -183,27 +189,38 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
             <b>{stanje ? stanje.uZbirci : "—"}</b>
             <span>
               {stanje && stanje.uPopisu && stanje.uZbirci < stanje.uPopisu
-                ? "od " + stanje.uPopisu + " iz popisa"
-                : (stanje ? padez(stanje.uZbirci) : "pjesama") + " na uređaju"}
+                ? (jezik === "en" ? "of " + stanje.uPopisu + " on the list" : "od " + stanje.uPopisu + " iz popisa")
+                : (stanje ? pjesama(stanje.uZbirci, jezik) : pjesama(0, jezik)) + (jezik === "en" ? " on this device" : " na uređaju")}
             </span>
           </div>
           <div className="guredajmjera">
             <b>{mjesto ? koliko(mjesto.koristeno) : "—"}</b>
-            <span>{mjesto && mjesto.ukupno ? "od " + koliko(mjesto.ukupno) : "zauzeto"}</span>
+            <span>{mjesto && mjesto.ukupno
+                ? (jezik === "en" ? "of " : "od ") + koliko(mjesto.ukupno)
+                : t("zauzeto")}</span>
           </div>
         </div>
 
         {stanje && stanje.uPopisu > stanje.uZbirci ? (
           <p className="gdsitno">
-            Popis zna za {stanje.uPopisu} pjesama, a ovdje ih je {stanje.uZbirci}. Ostale se
-            dodaju sljedećim odabirom; uvoz se nastavlja, ne počinje ispočetka.
+            {jezik === "en"
+              ? "The list knows of " +
+                stanje.uPopisu +
+                " songs, and " +
+                stanje.uZbirci +
+                " are here. The rest come with the next selection; the import continues rather than starting over."
+              : "Popis zna za " +
+                stanje.uPopisu +
+                " pjesama, a ovdje ih je " +
+                stanje.uZbirci +
+                ". Ostale se dodaju sljedećim odabirom; uvoz se nastavlja, ne počinje ispočetka."}
           </p>
         ) : null}
 
         {radi ? (
           <div className="guredajradi">
             <p className="gdoznaka">
-              {napredak && napredak.ime ? napredak.ime : "Slažem zbirku…"}
+              {napredak && napredak.ime ? napredak.ime : t("Slažem zbirku…")}
             </p>
             <div className="gdtraka">
               <i
@@ -231,14 +248,14 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
                 className="glavna"
                 onClick={() => datotekeRef.current && datotekeRef.current.click()}
               >
-                <FileArchive size={16} aria-hidden="true" /> Odaberi datoteku
+                <FileArchive size={16} aria-hidden="true" /> {t("Odaberi datoteku")}
               </button>
               <button
                 type="button"
                 className="gdodajtipka"
                 onClick={() => mapaRef.current && mapaRef.current.click()}
               >
-                <FolderInput size={16} aria-hidden="true" /> Odaberi mapu
+                <FolderInput size={16} aria-hidden="true" /> {t("Odaberi mapu")}
               </button>
             </div>
             <p className="gdsitno">
@@ -264,9 +281,9 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
           <div className="gdposlovi">
             <p className="gdstanje" data-stanje={ishod.greske.length ? "greska" : "gotovo"}>
               {ishod.doneseno
-                ? "Doneseno " + ishod.doneseno + " " + padez(ishod.doneseno)
-                : "Nije doneseno ništa novo"}
-              {ishod.preskoceno ? ", " + ishod.preskoceno + " već bilo ovdje" : ""}
+                ? (jezik === "en" ? "Brought in " : "Doneseno ") + ishod.doneseno + " " + pjesama(ishod.doneseno, jezik)
+                : t("Nije doneseno ništa novo")}
+              {ishod.preskoceno ? ", " + ishod.preskoceno + (jezik === "en" ? " already here" : " već bilo ovdje") : ""}
             </p>
             {ishod.greske.length ? (
               <div className="gdodbijene">
@@ -288,12 +305,15 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
         {oVisku && !radi ? (
           <div className="guredajvisak">
             <span className="gdsitno">
-              Ovdje {oVisku.stoji} {suvisno.snimke.length} {oVisku.imenica} {oVisku.koje} u
-              popisu više nema{suvisno.bajtova ? ", " + koliko(suvisno.bajtova) : ""}. To se
-              ne svira i ne vidi, a mjesto drži.
+              {jezik === "en" ? "Here " : "Ovdje "}
+              {oVisku}
+              {suvisno.bajtova ? ", " + koliko(suvisno.bajtova) : ""}.{" "}
+              {jezik === "en"
+                ? "That does not play and is not shown, but it takes up room."
+                : "To se ne svira i ne vidi, a mjesto drži."}
             </span>
             <button type="button" className="gdodajtipka" onClick={ocisti} disabled={radi}>
-              <Eraser size={15} aria-hidden="true" /> Počisti
+              <Eraser size={15} aria-hidden="true" /> {t("Počisti")}
             </button>
           </div>
         ) : null}
@@ -319,7 +339,7 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
                   Briši
                 </button>
                 <button type="button" className="gdodajtipka" onClick={() => setBrisem(false)}>
-                  Odustani
+                  {t("Odustani")}
                 </button>
               </>
             ) : (
@@ -329,7 +349,7 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
                 onClick={() => setBrisem(true)}
                 disabled={radi}
               >
-                <Trash2 size={15} aria-hidden="true" /> Obriši zbirku s uređaja
+                <Trash2 size={15} aria-hidden="true" /> {t("Obriši zbirku s uređaja")}
               </button>
             )}
           </div>
@@ -352,33 +372,3 @@ function koliko(bajtova) {
   return Math.round(mb) + " MB";
 }
 
-/**
- * Broj u hrvatskome ne mijenja samo imenicu nego i glagol uza nju i odnosnu
- * zamjenicu iza nje: „stoji 1 pjesma koje nema”, „stoje 2 pjesme kojih nema”,
- * „stoji 5 pjesama kojih nema”. Zato idu zajedno, a ne svaki za sebe: složi li
- * se rečenica po komadima, složi se kriva.
- *
- * @param {number} n
- */
-function sklop(n) {
-  const z = n % 100;
-  const naest = z > 10 && z < 20;
-  const j = n % 10;
-  return {
-    /* Dva, tri i četiri traže množinu; jedan i sve od pet nadalje jedninu. */
-    stoji: !naest && j >= 2 && j <= 4 ? "stoje" : "stoji",
-    imenica: padez(n),
-    /* Iza „nema” ide genitiv: jednine za jedan, množine za sve ostalo. */
-    koje: !naest && j === 1 ? "koje" : "kojih",
-  };
-}
-
-/** @param {number} n */
-function padez(n) {
-  const z = n % 100;
-  if (z > 10 && z < 20) return "pjesama";
-  const j = n % 10;
-  if (j === 1) return "pjesma";
-  if (j >= 2 && j <= 4) return "pjesme";
-  return "pjesama";
-}

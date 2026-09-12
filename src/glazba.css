@@ -2132,3 +2132,14 @@ a.gdodajtipka {
     color: var(--tekst);
   }
 }
+
+/* Tipka za jezik: ikona i dvoslovna kratica uz nju, pa se vidi na što se
+   prelazi i kad je traka uska. */
+.gjeziktipka {
+  width: auto;
+  gap: 5px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
