@@ -842,6 +842,13 @@
   color: var(--tekst);
   text-decoration: underline;
 }
+/* Bez mreže isti natpis, ali ne i poveznica: stoji da je snimka s YouTubea,
+   a ondje se dotad ne ide. */
+.gizvor.nema {
+  color: var(--blijedo);
+  opacity: 0.55;
+  cursor: default;
+}
 
 /* ---------- izbornik nad redkom ---------- */
 

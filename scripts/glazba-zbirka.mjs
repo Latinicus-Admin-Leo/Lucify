@@ -377,6 +377,11 @@ export function unos(zbirka, ime, prije) {
     /* Ova dva polja upisuje čovjek, za školske slušne primjere. */
     razdoblje: p.razdoblje || "",
     biljeska: p.biljeska || "",
+    /* Iz koje je mape pjesma ušla u zbirku, ako je ušla iz mape. Po tome se u
+       Lucifyju složi popis istoga imena, jednom, pa se dalje uređuje kao i
+       svaki drugi. Čita se iz staroga popisa, a ne iz datoteke: u njoj za to
+       nema mjesta, a svako bi novo čitanje zbirke inače izgubilo pripadnost. */
+    ...(p.mapa ? { mapa: p.mapa } : {}),
     omot: "",
   };
 }

@@ -111,6 +111,10 @@ const Uvoz = /** @type {any} */ (
    značilo bi izgubiti srca i vlastite popise onima koji ih ondje već imaju. */
 const KLJUC_SRCA = "lucijanka.glazba.srca";
 const KLJUC_LISTE = "lucijanka.glazba.liste";
+/* Mape iz kojih je popis već jednom složen. Bez ovoga bi se obrisan popis
+   vratio sam od sebe pri sljedećem otvaranju, a i uređen bi se vratio na
+   početno stanje. */
+const KLJUC_MAPE = "lucijanka.glazba.mape";
 
 /** @param {string} k @param {any} zadano */
 function ucitaj(k, zadano) {
@@ -257,7 +261,18 @@ export default function Glazba() {
     (() => ucitaj(KLJUC_LISTE, [])),
   );
 
+  const [sijaneMape, setSijaneMape] = useState(
+    /** @type {() => string[]} */ (() => ucitaj(KLJUC_MAPE, [])),
+  );
+
   const [otvoreno, setOtvoreno] = useState({ vrsta: "sve", id: "sve" });
+  /* Ima li mreže. Zbirka je na uređaju i svira bez nje, ali poveznica na
+     YouTube bez mreže vodi u prazan zaslon preglednika, pa je onda nema.
+     Sluša se i poslije, a ne samo pri otvaranju: mreža ode i vrati se, a
+     Lucify ostaje otvoren. */
+  const [mreza, setMreza] = useState(
+    () => typeof navigator === "undefined" || navigator.onLine !== false,
+  );
   const [trazi, setTrazi] = useState("");
   const [traziZbirku, setTraziZbirku] = useState("");
   /* Zbirka se otvara na popisima, jer se odande i kreće u slušanje.
@@ -332,10 +347,49 @@ export default function Glazba() {
 
   useEffect(() => spremi(KLJUC_SRCA, srca), [srca]);
   useEffect(() => spremi(KLJUC_LISTE, liste), [liste]);
+  useEffect(() => spremi(KLJUC_MAPE, sijaneMape), [sijaneMape]);
+
+  /**
+   * Pjesma unesena iz mape nosi ime te mape, a od njega ovdje nastaje popis —
+   * **jednom**, i dalje je čovjekov. Zato se sijanje pamti po imenu mape: tko
+   * popis obriše ili prekroji, ne dobiva ga natrag pri sljedećem otvaranju.
+   * Nove pjesme u istoj mapi zato ne ulaze same; ide ih se dodati rukom, kao i
+   * u svaki drugi popis.
+   */
+  useEffect(() => {
+    const pjesme = (zbirka && zbirka.pjesme) || [];
+    if (!pjesme.length) return;
+    /** @type {Map<string, string[]>} */
+    const poMapi = new Map();
+    for (const p of pjesme) {
+      if (!p.mapa) continue;
+      if (!poMapi.has(p.mapa)) poMapi.set(p.mapa, []);
+      (poMapi.get(p.mapa) || []).push(p.id);
+    }
+    const nove = [...poMapi.entries()].filter(([ime]) => !sijaneMape.includes(ime));
+    if (!nove.length) return;
+    setListe((l) => [
+      ...l,
+      ...nove
+        .filter(([ime]) => !l.some((x) => x.naslov === ime))
+        .map(([ime, ids]) => ({ id: "lista-mapa-" + ime.toLowerCase(), naslov: ime, pjesme: ids })),
+    ]);
+    setSijaneMape((s) => [...s, ...nove.map(([ime]) => ime)]);
+  }, [zbirka, sijaneMape]);
   /* Glasnoća, nasumično i ponavljanje pamte se u samom sviraču, jer se ondje i
      mijenjaju. */
 
   /* Dok je Lucify otvoren, stranica ispod njega ne smije se pomicati. */
+  useEffect(() => {
+    const osvjezi = () => setMreza(navigator.onLine !== false);
+    window.addEventListener("online", osvjezi);
+    window.addEventListener("offline", osvjezi);
+    return () => {
+      window.removeEventListener("online", osvjezi);
+      window.removeEventListener("offline", osvjezi);
+    };
+  }, []);
+
   useEffect(() => {
     const prije = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -538,6 +592,23 @@ export default function Glazba() {
         x.id === idListe && !x.pjesme.includes(idPjesme)
           ? { ...x, pjesme: [...x.pjesme, idPjesme] }
           : x,
+      ),
+    );
+  }, []);
+
+  /**
+   * Van iz popisa, ali ne i iz zbirke.
+   *
+   * Miče se samo iz **vlastitih popisa**, jer su oni ono što je čovjek složio i
+   * smije rasložiti. „Sve pjesme” i police po izvođačima nisu popisi nego
+   * pogled na zbirku: ondje stoji sve što na uređaju postoji, pa se odande i ne
+   * miče — pjesma bi nestala iz jedinoga mjesta na kojem je sigurno ima.
+   * Zbirka se prazni na svojem mjestu, u okviru „Zbirka”.
+   */
+  const izPopisa = useCallback((idListe, idPjesme) => {
+    setListe((l) =>
+      l.map((x) =>
+        x.id === idListe ? { ...x, pjesme: x.pjesme.filter((p) => p !== idPjesme) } : x,
       ),
     );
   }, []);
@@ -1063,7 +1134,7 @@ export default function Glazba() {
                   <span className="stupac">
                     {p.razdoblje ? (
                       p.razdoblje
-                    ) : p.yt ? (
+                    ) : p.yt && mreza ? (
                       <a
                         className="gizvor"
                         href={"https://www.youtube.com/watch?v=" + p.yt}
@@ -1072,6 +1143,10 @@ export default function Glazba() {
                       >
                         YouTube
                       </a>
+                    ) : p.yt ? (
+                      /* Bez mreže ostaje natpis, ali ne i poveznica: pjesma i
+                         dalje svira, a klik bi vodio u prazan zaslon. */
+                      <span className="gizvor nema">YouTube</span>
                     ) : (
                       "Datoteka"
                     )}
@@ -1201,7 +1276,7 @@ export default function Glazba() {
                 <div className="gkartica">
                   <h3>Zapis</h3>
                   <p>{sada.izvorniNaslov}</p>
-                  {sada.yt ? (
+                  {sada.yt && mreza ? (
                     <p style={{ marginTop: 8 }}>
                       <a
                         className="gizvor"
@@ -1522,7 +1597,21 @@ export default function Glazba() {
           >
             Novi popis…
           </button>
-          {poId.get(jelovnik.id) && poId.get(jelovnik.id).yt ? (
+          {otvoreno.vrsta === "lista" ? (
+            <>
+              <hr />
+              <button
+                type="button"
+                onClick={() => {
+                  izPopisa(otvoreno.id, jelovnik.id);
+                  setJelovnik(null);
+                }}
+              >
+                Makni iz ovog popisa
+              </button>
+            </>
+          ) : null}
+          {poId.get(jelovnik.id) && poId.get(jelovnik.id).yt && mreza ? (
             <>
               <hr />
               <a

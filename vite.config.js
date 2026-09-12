@@ -93,8 +93,12 @@ export default defineConfig(({ mode }) => ({
      postojati u dva primjerka. */
   plugins: [
     react(),
-    zbirkaNaRazvoju(path.resolve(__dirname)),
-    preuzimacNaRazvoju(path.resolve(__dirname)),
+    /* `LUCIFY_ZBIRKA` znači isto što i u namjenskoj aplikaciji: gdje stoji
+       zbirka. Bez njega je to mapa projekta, kao i dosad. Time se razvojni
+       poslužitelj dade okrenuti na pravu zbirku — onu koju gotov program drži
+       u `Glazba/Lucify` — a da se ništa ne prepisuje i ne seli. */
+    zbirkaNaRazvoju(process.env.LUCIFY_ZBIRKA || path.resolve(__dirname)),
+    preuzimacNaRazvoju(process.env.LUCIFY_ZBIRKA || path.resolve(__dirname)),
     ...pwa(mode),
   ],
   resolve: {
