@@ -33,3 +33,7 @@ alati
 # GitHub. Stoje izvan `public/` zato sto Vite sve iz te mape prepisuje u
 # `dist/`, pa bi svaki build kopirao 600 MB uzalud.
 Glazba/Zvuk
+
+# izvoz za mobitel: ista glazba, samo preimenovana i s upisanim oznakama.
+# Zadana mapa stoji uz projekt, pa bi je jedan "git add -A" odnio u povijest.
+/Lucify za mobitel

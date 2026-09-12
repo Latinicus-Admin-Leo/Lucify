@@ -9,10 +9,20 @@
          boja trake preglednika ne mijenja s njom. -->
     <meta name="color-scheme" content="dark" />
     <link rel="icon" type="image/svg+xml" href="/lucify.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Jedino pismo koje Lucify traži izvana. Sve ostalo je sustavsko. -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+    <!-- Prečac na početnom zaslonu. Popis ikona i boja stoji u
+         `manifest.webmanifest`, koji slaže `vite.config.js`, ali iOS iz njega
+         ne uzima ni ikonu ni to da se otvara bez trake preglednika, nego traži
+         ova tri retka. Bez prvoga bi prečac nosio snimku zaslona. -->
+    <link rel="apple-touch-icon" href="/lucify-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Lucify" />
+    <!-- `black-translucent`: stranica ide pod satom i baterijom, a razmak pod
+         njima drži `viewport-fit=cover` gore i `safe-area-inset` u CSS-u. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Ovdje je prije stajalo pismo s Googleovih poslužitelja. Sada stoji u
+         `public/pisma/`, a `@font-face` mu je na vrhu `glazba.css`: Lucify
+         izvana ne traži ništa, pa jednako izgleda i bez mreže. -->
     <title>Lucify</title>
   </head>
   <body>

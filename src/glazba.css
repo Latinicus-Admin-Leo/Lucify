@@ -12,6 +12,44 @@
  * Sada se zove `gtece`. Prije novoga naziva vrijedi `grep`.
  */
 
+/*
+ * Pismo stoji u `public/pisma/`, a ne dolazi s Googleovih poslužitelja.
+ * Dok je dolazilo izvana, namjenska aplikacija bez mreže na njega je čekala,
+ * odustala i ispisala se sustavskim pismom: ondje nema uslužnoga radnika koji
+ * bi ga spremio, jer ga `vite.config.js` u načinu `namjenska` namjerno ne
+ * uključuje. Ovako Lucify izvana ne traži više ništa, ni prvi put ni poslije.
+ *
+ * Uzeta je samo debljina 400: `IBM Plex Mono` javlja se na dva mjesta, u
+ * `.gdalati` i u `.gppolje`, i ni na jednom se ne podeblja. Naslovi pjesama,
+ * u kojima ima i ćirilice i japanskoga, idu sustavskim pismom i ovo ih ne
+ * dira.
+ *
+ * Podskupovi su dva, a `unicode-range` govori pregledniku koji mu treba:
+ * `latin-ext` dohvati tek kad zatreba slovo iz njega, dakle na našim
+ * kvačicama. Rasponi su prepisani onakvi kakve daje Google, da se podjela ne
+ * razlikuje od one koja je ovdje stajala prije.
+ */
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/pisma/IBMPlexMono-400-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/pisma/IBMPlexMono-400-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
 .glazba {
   --pod: #0a0a0b;
   --ploca: #121214;
@@ -1372,6 +1410,64 @@ a.gdodajtipka {
   color: var(--blijedo);
 }
 
+/* ---------- okvir „Zbirka”: zbirka koju nosi sam uređaj ---------- */
+
+/* Dvije mjere jedna uz drugu, jer odgovaraju na dva pitanja: koliko je pjesama
+   došlo i koliko je mjesta ostalo. Stoje u okviru, a ne u gornjoj traci, jer se
+   gledaju kad se zbirka unosi, a ne dok se sluša. */
+.guredaj {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.guredajmjera {
+  border: 1px solid var(--crta);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #121214;
+}
+.guredajmjera b {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.guredajmjera span {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--blijedo);
+}
+.guredajradi {
+  margin-top: 16px;
+}
+/* Dvije tipke u istom redu, a na uskom zaslonu jedna pod drugom: druga je
+   ondje i jedina koja radi, pa ne smije ispasti izvan okvira. */
+.guredajtipke {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.guredajsavjet {
+  margin-top: 14px;
+  border-left: 2px solid var(--zeleno);
+  padding-left: 10px;
+}
+.guredajbrisi {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--crta);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.guredajbrisi .gdsitno {
+  flex: 1;
+  margin-top: 0;
+  min-width: 180px;
+}
+
 /* ---------- popis poslova u okviru ---------- */
 
 .gdposlovi {
@@ -1477,12 +1573,38 @@ a.gdodajtipka {
 }
 .gdalati {
   margin-top: 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.32);
 }
 .gdalati:empty {
   display: none;
+}
+
+/* Tipka u retku s inačicama: tekst, a ne gumb, jer stoji uz sitan ispis i ne
+   smije ga nadglasati. Do nje se dolazi rijetko — onda kad YouTube promijeni
+   svirač — pa je dovoljno da se vidi kad se traži. */
+.gdosvjezi {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: rgba(255, 255, 255, 0.42);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gdosvjezi:hover:not(:disabled) {
+  color: var(--zeleno);
+}
+.gdosvjezi:disabled {
+  color: rgba(255, 255, 255, 0.28);
+  cursor: default;
+  text-decoration: none;
 }
 
 /* ---------- okvir „Poveznice” ---------- */

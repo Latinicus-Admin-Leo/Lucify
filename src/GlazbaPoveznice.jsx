@@ -7,17 +7,20 @@ import { KORIJEN } from "./glazba-svirac.mjs";
  * Okvir „Poveznice”: cijela zbirka ispisana kao gole YouTube adrese, u
  * stranicama, da se mogu prenijeti na mobitel.
  *
- * Zbirke na objavljenoj stranici nema i neće je biti: snimke su tuđe autorsko
+ * Glazbe u objavljenom Lucifyju nema i neće je biti: snimke su tuđe autorsko
  * djelo, pa `Glazba/Zvuk/` ne ulazi ni u git ni u `dist/`. Adresa snimke,
  * međutim, nije snimka. Nju `npm run glazba` zapisuje u
- * `public/poveznice.json`, ta datoteka smije u git, i tako zbirka ipak stigne
- * na mobitel — kao popis onoga što treba potražiti, a ne kao glazba.
+ * `public/poveznice.json`, ta datoteka smije u git, i tako popis zbirke stigne
+ * i onamo gdje same zbirke nema.
  *
- * Poveznice dolaze iz dvaju izvora. Ondje gdje zbirka postoji, dakle na
- * `npm run dev` i u namjenskoj aplikaciji, uzimaju se ravno iz nje, jer je ona
- * uvijek svježija: pjesma preuzeta prije minute u njoj već jest, a u
- * `poveznice.json` ulazi tek pri idućem `npm run glazba`. Ondje gdje zbirke
- * nema, dohvaća se ta datoteka.
+ * Otkad se zbirka na uređaj može i unijeti, ovo više nije jedini način da se do
+ * nje dođe, ali jest jedini način da se iz nje izađe: ovdje stoje gole adrese,
+ * pa se zbirka može predati dalje ili posložiti drugdje.
+ *
+ * Poveznice dolaze iz dvaju izvora. Ondje gdje zbirka postoji, uzimaju se ravno
+ * iz nje, jer je ona uvijek svježija: pjesma preuzeta prije minute u njoj već
+ * jest, a u `poveznice.json` ulazi tek pri idućem `npm run glazba`. Na uređaju
+ * na koji zbirka još nije unesena dohvaća se ta datoteka.
  */
 
 /* Stranica nosi dvadeset sedam poveznica. Broj je odabran, a ne izračunat: toliko

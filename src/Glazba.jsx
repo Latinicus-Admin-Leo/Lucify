@@ -12,6 +12,7 @@ import {
   Clock,
   Disc3,
   Download,
+  FolderInput,
   Heart,
   Library,
   ListPlus,
@@ -34,6 +35,7 @@ import {
 } from "lucide-react";
 import * as svirac from "./glazba-svirac.mjs";
 import { KORIJEN, mmss, odbroj } from "./glazba-svirac.mjs";
+import { NA_UREDAJU, omotAdresa, zbirkaUredaja } from "./glazba-izvor.mjs";
 import Znak from "./Znak.jsx";
 import "./glazba.css";
 
@@ -47,7 +49,10 @@ import "./glazba.css";
 /* Namjenska aplikacija ima zbirku u mapi koju čovjek bira, a ne uz projekt,
    pa joj savjeti o `npm` naredbama ne znače ništa. */
 const NAMJENSKA = import.meta.env.MODE === "namjenska";
-const PREUZIMAC = import.meta.env.DEV || NAMJENSKA;
+/* Ista provjera kao `NA_UREDAJU`, samo okrenuta, i zato izvedena odande a ne
+   napisana drugi put: gdje god ima poslužitelja koji zna preuzeti pjesmu, ima i
+   poslužitelja koji je zna poslužiti. */
+const PREUZIMAC = !NA_UREDAJU;
 
 /* Namjenska aplikacija za Windows. Sam program ne može stajati uz objavljenu
    stranicu: instalacija je stotinjak megabajta, a Vercel na besplatnom računu
@@ -66,21 +71,33 @@ const Dodaj = /** @type {any} */ (
   PREUZIMAC ? lazy(() => import("./GlazbaDodaj.jsx")) : null
 );
 
-/* Okvir s poveznicama, za razliku od onoga za dodavanje, stoji i na
-   objavljenoj stranici. Ondje je on jedino što od zbirke ostaje: glazbe
-   nema, ali popis onoga što u njoj stoji stigne i na mobitel. */
+/* Okvir s poveznicama stoji svugdje, i na objavljenom Lucifyju. Nastao je kad
+   ondje zbirke još nije bilo, kao jedini način da popis stigne na mobitel;
+   otkad je zbirka ondje, on je i dalje jedini način da se iz nje izađe van, na
+   sam YouTube. */
 const Poveznice = lazy(() => import("./GlazbaPoveznice.jsx"));
+
+/* Uvoz zbirke s uređaja, obrnuto od preuzimača: stoji **samo** ondje gdje
+   poslužitelja nema, jer se ondje zbirka ne dohvaća nego nosi. Uz `npm run dev`
+   i u namjenskoj aplikaciji uvoziti nema što, pa i ovaj `import()` ispada iz
+   izlaza. */
+const Uvoz = /** @type {any} */ (
+  NA_UREDAJU ? lazy(() => import("./GlazbaUvoz.jsx")) : null
+);
 
 /**
  * Lucify: zbirka snimaka i svirač, u izgledu posuđenom od glazbenih
  * programa. Prije je bila alat unutar školske mape Lucijankice i ondje je imala
  * tipku „Natrag na bilješke”; ovdje je sama sebi stranica, pa te tipke nema.
  *
- * Zbirka dolazi s adrese `/glazba/`, koju na razvojnom poslužitelju poslužuje
- * dodatak iz `vite.config.js`, iz mape `Glazba/Zvuk/`. Ta mapa nije u gitu, jer
- * su snimke tuđe autorsko djelo, pa je na objavljenoj stranici nema. Zato se
- * popis **dohvaća**, a ne uvozi: da ga nema, Lucify to kaže, umjesto da
- * build padne na uvozu datoteke koje ondje nema.
+ * Zbirka dolazi s dvaju mjesta, a odluka o tome stoji u `glazba-izvor.mjs`.
+ * Ondje gdje iza Lucifyja stoji poslužitelj, dolazi s adrese `/glazba/`, iz
+ * mape `Glazba/Zvuk/`; ondje gdje ga nema, dakle na mobitelu, iz IndexedDB, u
+ * koji ju je ostavio uvoz.
+ *
+ * Ta mapa nije u gitu, jer su snimke tuđe autorsko djelo. Zato se popis
+ * **dohvaća**, a ne uvozi: da ga se uvozilo, build bi pao ondje gdje zbirke
+ * nema, umjesto da Lucify jednostavno kaže da je prazna.
  */
 
 /* Ključevi nose staro ime namjerno, kao i u Lucijankici: preimenovati ih
@@ -170,7 +187,7 @@ function Omot({ slika, ime, mozaik, klasa }) {
   if (slika) {
     return (
       <div className={"gomot " + (klasa || "")} style={boje}>
-        <img src={KORIJEN + "glazba/" + slika} alt="" loading="lazy" />
+        <img src={omotAdresa(slika)} alt="" loading="lazy" />
       </div>
     );
   }
@@ -178,7 +195,7 @@ function Omot({ slika, ime, mozaik, klasa }) {
     return (
       <div className={"gomot mozaik " + (klasa || "")} style={boje}>
         {mozaik.slice(0, 4).map((s, i) => (
-          <img key={i} src={KORIJEN + "glazba/" + s} alt="" loading="lazy" />
+          <img key={i} src={omotAdresa(s)} alt="" loading="lazy" />
         ))}
       </div>
     );
@@ -188,7 +205,7 @@ function Omot({ slika, ime, mozaik, klasa }) {
   if (mozaik && mozaik.length) {
     return (
       <div className={"gomot " + (klasa || "")} style={boje}>
-        <img src={KORIJEN + "glazba/" + mozaik[0]} alt="" loading="lazy" />
+        <img src={omotAdresa(mozaik[0])} alt="" loading="lazy" />
       </div>
     );
   }
@@ -265,6 +282,7 @@ export default function Glazba() {
   const [zbirkaOtvorena, setZbirkaOtvorena] = useState(false);
   const [dodajOtvoren, setDodajOtvoren] = useState(false);
   const [vezeOtvorene, setVezeOtvorene] = useState(false);
+  const [uvozOtvoren, setUvozOtvoren] = useState(false);
   /* Na mobitelu je svirač skupljen u karticu nad donjom trakom, a dodirom se
      otvara preko cijeloga zaslona. Na stolnom računalu te razlike nema: ondje
      svirač uvijek stoji u traci pri dnu, pa se ovo stanje ne koristi. */
@@ -279,8 +297,16 @@ export default function Glazba() {
      osvježavanja stranice. */
   const ucitajPopis = useCallback(
     () =>
-      fetch(KORIJEN + "glazba/popis.json", { cache: "no-cache" })
-        .then((o) => (o.ok ? o.json() : Promise.reject(new Error(String(o.status)))))
+      /* Dva izvora, ista dalja obrada. Gdje ima poslužitelja, popis je datoteka
+         koja se dohvaća; gdje ga nema, popis je ono što je uvoz ostavio na
+         uređaju, a uz njega se otvore i omoti, prije prvoga prikaza, da prvi
+         prikaz ima što nacrtati. */
+      (NA_UREDAJU
+        ? zbirkaUredaja()
+        : fetch(KORIJEN + "glazba/popis.json", { cache: "no-cache" }).then((o) =>
+            o.ok ? o.json() : Promise.reject(new Error(String(o.status))),
+          )
+      )
         .then((p) => {
           setZbirka(p);
           /* Svirač dobiva isti popis, jer bez njega ne zna ni gdje je koja
@@ -535,6 +561,15 @@ export default function Glazba() {
     </Suspense>
   ) : null;
 
+  /* Uvoz mijenja zbirku pod rukom, pa se po njegovu zatvaranju popis čita
+     iznova, isto kao poslije preuzimanja. */
+  const okvirUvoz =
+    NA_UREDAJU && uvozOtvoren ? (
+      <Suspense fallback={null}>
+        <Uvoz naZatvori={() => setUvozOtvoren(false)} naUvezeno={ucitajPopis} />
+      </Suspense>
+    ) : null;
+
   /** Tipka koja taj okvir otvara. @param {string} [razred] */
   const tipkaDodaj = (razred) =>
     PREUZIMAC ? (
@@ -549,6 +584,20 @@ export default function Glazba() {
       </button>
     ) : null;
 
+  /** Njezin par na uređaju: ondje se zbirka ne preuzima nego unosi. @param {string} [razred] */
+  const tipkaUvoz = (razred) =>
+    NA_UREDAJU ? (
+      <button
+        type="button"
+        className={"gdodajtipka" + (razred ? " " + razred : "")}
+        aria-label="Zbirka na uređaju"
+        onClick={() => setUvozOtvoren(true)}
+      >
+        <FolderInput size={17} aria-hidden="true" />
+        <span>Zbirka</span>
+      </button>
+    ) : null;
+
   if (ucitavam) {
     return (
       <div className="glazba">
@@ -558,6 +607,7 @@ export default function Glazba() {
         </div>
         <div />
         {okvirDodaj}
+        {okvirUvoz}
         {okvirVeze}
       </div>
     );
@@ -639,10 +689,11 @@ export default function Glazba() {
             <span>Poveznice</span>
           </button>
           {tipkaDodaj()}
-          {/* Samo na objavljenoj stranici: ondje se glazba ne može ni preuzeti
-              ni slušati, pa je namjenska aplikacija jedino čime se ta stranica
-              pretvara u svirač. Tko je već u njoj, ili na `npm run dev`, nema
-              što preuzimati. */}
+          {tipkaUvoz()}
+          {/* Samo na objavljenoj stranici: ondje se pjesma ne može preuzeti
+              poveznicom, jer iza stranice nema ni yt-dlpa ni ffmpega. Zbirka se
+              ondje unosi gotova, a slaže je namjenska aplikacija. Tko je već u
+              njoj, ili na `npm run dev`, nema što preuzimati. */}
           {!PREUZIMAC ? (
             <a
               className="gdodajtipka"
@@ -1072,16 +1123,16 @@ export default function Glazba() {
                   ) : (
                     <>
                       <p>
-                        Ovdje glazbe nema i neće je biti: snimke su tuđe autorsko djelo, pa ne
-                        idu ni u git ni na objavljenu stranicu. Sluša se na vlastitom računalu,
-                        uz <code>npm run dev</code>.
+                        Zbirka je prazna, jer je na ovom uređaju još nema. Glazba ne dolazi
+                        odavde: snimke su tuđe autorsko djelo, pa ne idu ni u git ni na
+                        objavljenu stranicu. Zbirku nosi sam uređaj, i unese se jednom.
                       </p>
                       <p>
-                        Ostale su adrese: pod <b>Poveznice</b> stoji cijela zbirka kao popis
-                        YouTube poveznica, da se može posložiti i na mobitelu. Za slušanje
-                        same zbirke tu je Lucify za računalo.
+                        Mapu slaže Lucify za računalo, naredbom <code>npm run izvezi</code>.
+                        Prenesi je na ovaj uređaj i otvori <b>Zbirka</b> gore.
                       </p>
                       <p className="gpraznotipke">
+                        {tipkaUvoz()}
                         <button
                           type="button"
                           className="gdodajtipka"
@@ -1405,6 +1456,7 @@ export default function Glazba() {
       ) : null}
 
       {okvirDodaj}
+      {okvirUvoz}
       {okvirVeze}
 
       {jelovnik ? (

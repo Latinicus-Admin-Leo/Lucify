@@ -11,7 +11,11 @@
  * Ovdje nema ničega iz `glazba.css`, jer ova datoteka ne crta ništa.
  */
 
-export const KORIJEN = import.meta.env.BASE_URL || "/";
+import { KORIJEN, omotAdresa, pustiAdresu, zvukAdresa } from "./glazba-izvor.mjs";
+
+/* Dosadašnji uvoznici uzimaju `KORIJEN` odavde, pa ostaje gdje je i bio. Sama
+   vrijednost sada stoji uz ostalo što zna gdje zbirka jest. */
+export { KORIJEN };
 
 const KLJUC_POSTAVKE = "lucijanka.glazba.svirac";
 const KLJUC_ZADNJE = "lucijanka.glazba.zadnje";
@@ -279,8 +283,8 @@ function objaviPjesmu() {
       title: sada.naslov,
       artist: sada.izvodac,
       album: "Lucify",
-      artwork: sada.omot
-        ? [{ src: KORIJEN + "glazba/" + sada.omot, sizes: "512x512", type: "image/jpeg" }]
+      artwork: omotAdresa(sada.omot)
+        ? [{ src: omotAdresa(sada.omot), sizes: "512x512", type: "image/jpeg" }]
         : [],
     });
     navigator.mediaSession.setActionHandler("play", () => prekidac());
@@ -290,6 +294,82 @@ function objaviPjesmu() {
   } catch {
     /* stariji preglednik jednostavno nema te tipke */
   }
+}
+
+/* ---------- izvor zvuka ---------- */
+
+/**
+ * Adresa s koje sada svira. Na uređaju je to `blob:`, koja vrijedi dok je se ne
+ * poništi, pa se pamti zato da je ima tko poništiti kad dođe sljedeća pjesma.
+ */
+let adresa = "";
+
+/**
+ * Svako puštanje dobiva svoj broj. Snimka se na uređaju traži u bazi, dakle s
+ * čekanjem, a čovjek dotad može pritisnuti drugu: odgovor na stariji zahtjev
+ * tada stigne poslije novoga i, da ovoga broja nema, pretekao bi ga.
+ */
+let naredba = 0;
+
+/**
+ * Postavi izvor zvuka i poništi onaj prije njega.
+ *
+ * @param {HTMLAudioElement} z @param {any} p
+ * @returns {Promise<boolean>} je li adresa doista postavljena
+ */
+async function postaviIzvor(z, p) {
+  const moja = ++naredba;
+  const nova = await zvukAdresa(p);
+  if (moja !== naredba) {
+    /* Pretekla nas je novija pjesma, pa ova adresa nikomu ne treba. */
+    pustiAdresu(nova);
+    return false;
+  }
+  if (!nova) return false;
+  pustiAdresu(adresa);
+  adresa = nova;
+  tisina = false;
+  z.src = nova;
+  return true;
+}
+
+/**
+ * Tišina od četrdeset pet bajtova, i jedini razlog zašto postoji: iOS ne da
+ * zvuku da krene ako `play()` nije došao iz čovjekova dodira. Snimka se na
+ * uređaju najprije traži u bazi, dakle s čekanjem, pa `play()` stigne koji
+ * trenutak poslije dodira, a ondje je i to dovoljno da ga preglednik odbije.
+ *
+ * Zato element jednom zasvira ovu tišinu, ravno iz dodira. Poslije toga ga
+ * preglednik drži otključanim i pušta sve što dođe.
+ */
+const TISINA = "data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQEAAACA";
+let otkljucano = false;
+/** Svira li upravo ta tišina, da je „ended” ne shvati kao kraj pjesme. */
+let tisina = false;
+
+function otkljucaj() {
+  if (otkljucano) return;
+  otkljucano = true;
+  const z = dajZvuk();
+  /* Ako je pjesma već u elementu, otključavati nema što: tada je čovjek već
+     nešto pustio, pa je posao obavljen sam od sebe. */
+  if (!z || z.src) return;
+  tisina = true;
+  z.src = TISINA;
+  const o = z.play();
+  if (o && o.catch) {
+    o.catch(() => {
+      tisina = false;
+    });
+  }
+}
+
+/* Dodir, a ne klik: dodir se javlja prije, pa je element otključan već kad klik
+   stigne do popisa. Sluša se jedanput i više nikad. */
+if (typeof document !== "undefined") {
+  const naDodir = () => otkljucaj();
+  document.addEventListener("pointerdown", naDodir, { once: true, capture: true });
+  document.addEventListener("keydown", naDodir, { once: true, capture: true });
 }
 
 /**
@@ -320,6 +400,10 @@ function dajZvuk() {
   z.addEventListener("loadedmetadata", naPodatke);
   z.addEventListener("durationchange", naPodatke);
   z.addEventListener("play", () => {
+    /* Tišina koja otključava element nije pjesma, pa se ne smije vidjeti u
+       prikazu: inače bi prvi dodir bilo gdje na trenutak pokazao da nešto
+       svira, a ništa ne svira. */
+    if (tisina) return;
     svira = true;
     uskladiOtkucaj();
     osvjezi();
@@ -331,6 +415,12 @@ function dajZvuk() {
     osvjezi();
   });
   z.addEventListener("ended", () => {
+    /* Tišina koja otključava element završi odmah, i to nije kraj pjesme nego
+       kraj tišine: bez ovoga bi prvi dodir uzeo sljedeću pjesmu. */
+    if (tisina) {
+      tisina = false;
+      return;
+    }
     /* Mjerač postavljen na „do kraja pjesme” staje ovdje, prije ponavljanja i
        prije nego što `pomakni` uzme sljedeću: mjerač je noviji dogovor, pa
        nadjačava i „ponovi jednu”. */
@@ -392,9 +482,10 @@ function vrati() {
   na = indeks;
   sada = poId.get(trazena);
   vrijeme = z.vrijeme || 0;
-  a.src = KORIJEN + "glazba/" + sada.datoteka;
-  /* `currentTime` nema kamo dok se ne pročita zaglavlje, pa se mjesto vraća
-     tek kad preglednik javi da zna koliko pjesma traje. */
+  /* `currentTime` nema kamo dok se ne pročita zaglavlje, pa se mjesto vraća tek
+     kad preglednik javi da zna koliko pjesma traje. Slušatelj se veže prije
+     adrese, jer na uređaju snimka zna doći iz baze brže nego što bi se stigao
+     vezati poslije. */
   a.addEventListener(
     "loadedmetadata",
     () => {
@@ -406,6 +497,7 @@ function vrati() {
     },
     { once: true },
   );
+  postaviIzvor(a, sada);
   if (mijesaj) promijesaj(red.length, na);
   objaviPjesmu();
 }
@@ -441,23 +533,33 @@ export function pusti(noviRed, indeks) {
   sada = p;
   vrijeme = 0;
   ukupno = 0;
-  z.src = KORIJEN + "glazba/" + p.datoteka;
   zeljaSvira = true;
-  z.play().catch(() => {
-    zeljaSvira = false;
-    svira = false;
-    osvjezi();
-  });
+  /* Prikaz se osvježava odmah, a ne kad zvuk krene: na uređaju se snimka
+     najprije traži u bazi, pa bi inače između pritiska i prve crte prošao
+     trenutak u kojem se ne bi dogodilo ništa. */
   if (mijesaj) promijesaj(noviRed.length, indeks);
   zapamti();
   objaviPjesmu();
   osvjezi();
+  postaviIzvor(z, p).then((ima) => {
+    /* Dok se snimka tražila, čovjek je mogao pritisnuti stanku ili drugu
+       pjesmu. Prvo se vidi po namjeri, a drugo je `postaviIzvor` već odbio. */
+    if (!ima || !zeljaSvira) return;
+    z.play().catch(() => {
+      zeljaSvira = false;
+      svira = false;
+      osvjezi();
+    });
+  });
 }
 
 /** Pusti ili zaustavi ono što je već učitano. */
 export function prekidac() {
   const z = zvuk;
-  if (!z || !z.src) return;
+  /* Pita se za pjesmu, a ne više za `z.src`: otključavanje ostavi u elementu
+     tišinu, pa bi `src` postojao i kad nije odabrano ništa, a onda bi se ta
+     tišina i „pustila”. */
+  if (!z || !sada) return;
   if (z.paused) {
     zeljaSvira = true;
     z.play().catch(() => {
