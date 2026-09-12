@@ -16,7 +16,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import elektronskiNadograditelj from "electron-updater";
 import { pokreniPosluzitelj } from "./posluzitelj.mjs";
+
+/* `electron-updater` je CommonJS, pa iz njega izlazi jedan predmet, a ne
+   imenovani izvozi. Odatle ovaj rastav. */
+const { autoUpdater } = elektronskiNadograditelj;
 
 const ovdje = path.dirname(fileURLToPath(import.meta.url));
 const korijenPrograma = path.join(ovdje, "..");
@@ -97,6 +102,75 @@ function pripremiYtDlp(zbirka) {
         return;
       }
     }
+  }
+}
+
+/*
+ * Nadogradnja.
+ *
+ * Bez ovoga instalirani Lucify ostaje zauvijek na inačici s kojom je došao:
+ * popravak u preuzimaču ili noviji yt-dlp ne bi stigli ni do koga tko ne gradi
+ * sam iz izvora. Graditelj uz program ionako slaže `latest.yml`, pa je ostalo
+ * samo reći odakle da se čita.
+ *
+ * Tri mjesta na kojima se **ne** provjerava, i sva tri s razlogom:
+ *
+ * - iz izvora (`npm run namjenska`), jer ondje nema ni inačice ni instalacije
+ *   koju bi imalo smisla zamijeniti;
+ * - u prijenosnom programu, koji se ne instalira nego se nosi na sebi, pa ga
+ *   nadograditelj ne zna ni naći ni zamijeniti. Prepoznaje se po tome što mu
+ *   graditelj upiše `PORTABLE_EXECUTABLE_DIR`;
+ * - kad izdanja još nema, što nije greška nego samo tišina.
+ */
+function pripremiNadogradnju() {
+  if (!app.isPackaged) return;
+  if (process.env.PORTABLE_EXECUTABLE_DIR) return;
+
+  /* Greška pri provjeri ne smije ni srušiti program ni iskočiti čovjeku pred
+     oči: Lucify radi i bez nadogradnje, a mreže na putu zna nestati. */
+  autoUpdater.on("error", (greska) => {
+    console.error("Nadogradnja: " + (greska && greska.message ? greska.message : String(greska)));
+  });
+
+  autoUpdater.checkForUpdatesAndNotify().catch(() => {
+    /* već je javljeno gore */
+  });
+}
+
+/**
+ * Ista provjera, ali na zahtjev, iz jelovnika. Ovdje šutnja nije u redu: tko
+ * je sam pitao, mora dobiti odgovor i onda kad je odgovor „nema novoga”.
+ */
+async function provjeriNadogradnju() {
+  if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_DIR) {
+    await dialog.showMessageBox({
+      type: "info",
+      message: "Ovaj se Lucify ne nadograđuje sam.",
+      detail: process.env.PORTABLE_EXECUTABLE_DIR
+        ? "Prijenosni program nosi se na sebi, pa se ne da zamijeniti izvana. Noviji se uzima s GitHuba, kao i ovaj."
+        : "Pokrenut je iz izvora. Ondje se nadograđuje gitom.",
+    });
+    return;
+  }
+
+  try {
+    const ishod = await autoUpdater.checkForUpdates();
+    const novija = ishod && ishod.updateInfo && ishod.updateInfo.version;
+    if (!novija || novija === app.getVersion()) {
+      await dialog.showMessageBox({
+        type: "info",
+        message: "Lucify je već posljednji.",
+        detail: "Inačica " + app.getVersion() + ".",
+      });
+    }
+    /* Ako novija postoji, `checkForUpdates` ju je već počeo preuzimati, a
+       `checkForUpdatesAndNotify` javi kad bude gotova. */
+  } catch (greska) {
+    await dialog.showMessageBox({
+      type: "warning",
+      message: "Provjera nije uspjela.",
+      detail: String((greska && /** @type {any} */ (greska).message) || greska),
+    });
   }
 }
 
@@ -183,6 +257,11 @@ function slozJelovnik(zbirka) {
             },
           },
           { type: "separator" },
+          {
+            label: "Provjeri ima li novoga Lucifyja…",
+            click: () => provjeriNadogradnju(),
+          },
+          { type: "separator" },
           { role: "reload" },
           { role: "toggleDevTools" },
           { type: "separator" },
@@ -224,6 +303,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   pripremiFfmpeg();
+  pripremiNadogradnju();
 
   /* Greška pri pokretanju mora se vidjeti. Bez ovoga bi program samo stajao u
      popisu procesa, bez prozora i bez ijedne poruke: `console` na Windowsima

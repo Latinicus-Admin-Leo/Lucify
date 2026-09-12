@@ -23,6 +23,7 @@
     "pakiraj": "npm run alati && npm run build:namjenska && electron-builder --win"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.475.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
@@ -54,6 +55,13 @@
       "output": "izdanje",
       "buildResources": "build"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Latinicus-Admin-Leo",
+        "repo": "Lucify"
+      }
+    ],
     "files": [
       "dist/**",
       "electron/**",
