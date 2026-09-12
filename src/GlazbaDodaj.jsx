@@ -24,6 +24,7 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
   const [poslovi, setPoslovi] = useState(/** @type {any[]} */ ([]));
   const [greska, setGreska] = useState(/** @type {any} */ (null));
   const [salje, setSalje] = useState(false);
+  const [osvjezava, setOsvjezava] = useState(false);
 
   /* Zbirka se osvježava kad koji posao završi. Pamti se koji su već javljeni,
      jer isti posao stigne kroz tok događaja više puta, a popis se ne treba
@@ -47,6 +48,41 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
     return () => {
       ziv = false;
     };
+  }, []);
+
+  /*
+   * Noviji yt-dlp, bez izlaska iz Lucifyja.
+   *
+   * yt-dlp prestane raditi čim YouTube promijeni svirač, a to biva svakih
+   * nekoliko tjedana. Prije se to popravljalo izvana, pa je zapakirani program
+   * s vremenom prestajao raditi i nije se imalo čime pomoći iznutra. Sada se
+   * novi spušta uz zbirku, u korisnikovu mapu, jer se u `Program Files` ne
+   * piše.
+   */
+  const naOsvjezi = useCallback(async () => {
+    setOsvjezava(true);
+    setGreska(null);
+    try {
+      const odgovor = await fetch("/preuzmi/alati", { method: "POST" });
+      const tijelo = await odgovor.json();
+      /* Stanje dolazi i kad padne, jer i tada treba pokazati što se ima: ako
+         yt-dlpa nema nikako, to je druga poruka nego ako stari još radi. */
+      if (tijelo.alati) {
+        setStanje((/** @type {any} */ prije) => ({
+          ...prije,
+          ima: tijelo.alati.ytDlp.ima && tijelo.alati.ffmpeg.ima,
+          alati: tijelo.alati,
+        }));
+      }
+      if (!odgovor.ok) setGreska(tijelo.greska || { poruka: "Nov yt-dlp nije stigao." });
+    } catch (e) {
+      setGreska({
+        poruka: "Nov yt-dlp nije stigao.",
+        detalj: e && /** @type {any} */ (e).message ? String(/** @type {any} */ (e).message) : "",
+      });
+    } finally {
+      setOsvjezava(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -288,6 +324,14 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
           {stanje && stanje.alati && stanje.ima
             ? "yt-dlp " + stanje.alati.ytDlp.inacica + " · ffmpeg " + stanje.alati.ffmpeg.inacica
             : ""}
+          {/* Tipka stoji i kad yt-dlpa uopće nema: tada je ona jedini način da
+              stigne, a ne samo način da se osvježi. Nema je jedino ondje gdje
+              iza Lucifyja ne stoji poslužitelj, jer ondje nema ni kamo. */}
+          {stanje && !stanje.nedostupan ? (
+            <button type="button" className="gdosvjezi" onClick={naOsvjezi} disabled={osvjezava}>
+              {osvjezava ? "dohvaćam…" : stanje.alati && stanje.alati.ytDlp.ima ? "osvježi yt-dlp" : "dohvati yt-dlp"}
+            </button>
+          ) : null}
         </p>
       </div>
     </div>

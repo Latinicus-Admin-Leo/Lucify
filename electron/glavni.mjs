@@ -76,15 +76,26 @@ function pripremiFfmpeg() {
  *
  * Imena se ne računaju nego se redom isprobavaju: tako se ovaj popis i onaj u
  * `scripts/alati.mjs` ne mogu razići.
+ *
+ * @param {string} zbirka mapa zbirke, u kojoj stoji osvježeni yt-dlp
  */
-function pripremiYtDlp() {
+function pripremiYtDlp(zbirka) {
   if (process.env.YTDLP_PATH) return;
-  const mapa = path.join(korijenPrograma, "alati").replace("app.asar", "app.asar.unpacked");
-  for (const ime of ["yt-dlp.exe", "yt-dlp_macos", "yt-dlp_linux", "yt-dlp"]) {
-    const program = path.join(mapa, ime);
-    if (existsSync(program)) {
-      process.env.YTDLP_PATH = program;
-      return;
+  /* Mapa zbirke ide prva, a zapakirana druga. Redoslijed je ovdje sav posao:
+     zapakirani yt-dlp stari zajedno s programom, a onaj uz zbirku je onaj koji
+     je čovjek osvježio iz „Dodaj pjesmu”. Da je obrnuto, osvježeni bi vrijedio
+     samo do prvoga zatvaranja prozora. */
+  const mape = [
+    path.join(zbirka, "alati"),
+    path.join(korijenPrograma, "alati").replace("app.asar", "app.asar.unpacked"),
+  ];
+  for (const mapa of mape) {
+    for (const ime of ["yt-dlp.exe", "yt-dlp_macos", "yt-dlp_linux", "yt-dlp"]) {
+      const program = path.join(mapa, ime);
+      if (existsSync(program)) {
+        process.env.YTDLP_PATH = program;
+        return;
+      }
     }
   }
 }
@@ -99,6 +110,10 @@ async function otvori() {
   /* Prazna mapa nije greška: Lucify u tom slučaju kaže da je zbirka prazna i
      ponudi „Dodaj pjesmu”. Bez mape ne bi bilo ni kamo preuzeti. */
   mkdirSync(path.join(zbirka, "Glazba", "Zvuk"), { recursive: true });
+
+  /* Tek ovdje, a ne uz `pripremiFfmpeg()`: yt-dlp se traži i uz zbirku, a gdje
+     zbirka stoji zna se tek kad se pročitaju postavke. */
+  pripremiYtDlp(zbirka);
 
   posluzitelj = await pokreniPosluzitelj({
     dist: path.join(korijenPrograma, "dist"),
@@ -209,7 +224,6 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   pripremiFfmpeg();
-  pripremiYtDlp();
 
   /* Greška pri pokretanju mora se vidjeti. Bez ovoga bi program samo stajao u
      popisu procesa, bez prozora i bez ijedne poruke: `console` na Windowsima

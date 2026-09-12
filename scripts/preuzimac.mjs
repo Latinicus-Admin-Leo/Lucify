@@ -21,8 +21,9 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, renameSync }
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { procitajVeze } from "../src/glazba-veze.mjs";
+import { dohvatiYtDlp } from "./alati.mjs";
 import { dodajUPopis, putovi } from "./glazba-zbirka.mjs";
-import { Greska, javna, provjeriAlate } from "./preuzimac-alati.mjs";
+import { Greska, javna, provjeriAlate, zaboraviAlate } from "./preuzimac-alati.mjs";
 import { KAKVOCE, ZADANA_KAKVOCA, kakvoca, podatci, uMp3, zvuk } from "./preuzimac-posao.mjs";
 
 /** Koliko ih se pretvara istodobno. Ostali čekaju red. */
@@ -327,6 +328,45 @@ export function preuzimacRukovatelj(korijen) {
         kakvoce: Object.values(KAKVOCE).map((k) => ({ id: k.id, ime: k.ime, opis: k.opis })),
         zadana: ZADANA_KAKVOCA,
       });
+      return;
+    }
+
+    /*
+     * Noviji yt-dlp, iz samoga Lucifyja.
+     *
+     * yt-dlp izlazi gotovo svaki tjedan, a stariji prestane raditi čim YouTube
+     * promijeni svirač. Zapakirani primjerak zato zastari, a stoji u
+     * `Program Files`, kamo se ne piše. Novi se zato spušta u `alati/` unutar
+     * mape zbirke, koja je u korisnikovoj mapi i piše se.
+     *
+     * `YTDLP_PATH` se odmah preusmjeri na nov program, jer je on prvi na
+     * popisu u `nadiYtDlp()`: bez toga bi se i dalje pokretao stari, sve do
+     * ponovnog pokretanja Lucifyja.
+     *
+     * `zaboraviAlate()` uz to mora pasti, i to je ovdje cijela bit. Nađeni se
+     * alat pamti, jer se traži pokretanjem, a to traje; bez brisanja bi se i
+     * dalje vrtio **stari program sa zapamćene putanje**, pa bi osvježavanje
+     * izvana izgledalo kao da je prošlo, a ne bi promijenilo ništa.
+     */
+    if (staza === "alati" && req.method === "POST") {
+      try {
+        const ishod = await dohvatiYtDlp({ mapa: join(korijen, "alati"), osvjezi: true });
+        process.env.YTDLP_PATH = ishod.put;
+        zaboraviAlate();
+        posalji(res, 200, {
+          ishod: { inacica: ishod.inacica, mb: ishod.mb },
+          alati: await provjeriAlate(korijen),
+        });
+      } catch (e) {
+        posalji(res, 502, {
+          greska: {
+            oznaka: "ALATI",
+            poruka: "Nov yt-dlp nije stigao.",
+            detalj: e && e.message ? String(e.message).slice(0, 300) : "",
+          },
+          alati: await provjeriAlate(korijen),
+        });
+      }
       return;
     }
 
