@@ -24,3 +24,28 @@ export function spojiListe(ovdje, stigle) {
   });
   return [...spojene, ...poId.values()];
 }
+
+/**
+ * Stanje s diska spojeno s onim što stranica ima u `localStorage`.
+ *
+ * Ništa se ne gubi: što ima disk, vrijedi, a iza toga dođe ono što ima samo
+ * stranica. Tako ni prazan `localStorage` (Chromium ga zna obrisati sam) ne
+ * isprazni datoteku, ni prazna datoteka (prvo pokretanje) ne isprazni stranicu.
+ * Cijena je da se ono obrisano na jednoj strani, a ostalo na drugoj, vrati; to
+ * se događa samo kad se njih dvoje raziđu, a stranica ih inače drži jednakima.
+ *
+ * @param {{ srca?: string[], liste?: Lista[], jezici?: Record<string, string> } | null} disk
+ * @param {{ srca: string[], liste: Lista[], jezici: Record<string, string> }} ovdje
+ */
+export function spojiStanje(disk, ovdje) {
+  if (!disk) return ovdje;
+  const srca = disk.srca || [];
+  const liste = disk.liste || [];
+  const naDisku = new Set(liste.map((l) => l.id));
+  const srcaNaDisku = new Set(srca);
+  return {
+    srca: [...srca, ...ovdje.srca.filter((s) => !srcaNaDisku.has(s))],
+    liste: [...liste, ...ovdje.liste.filter((l) => !naDisku.has(l.id))],
+    jezici: { ...ovdje.jezici, ...(disk.jezici || {}) },
+  };
+}

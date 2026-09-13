@@ -15,6 +15,7 @@ import path from "node:path";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { zbirkaRukovatelj } from "../scripts/posluga.mjs";
 import { preuzimacRukovatelj } from "../scripts/preuzimac.mjs";
+import { stanjeRukovatelj } from "../scripts/stanje.mjs";
 
 /** Vrste sadržaja za ono što izađe iz `vite build`. */
 const VRSTE = {
@@ -40,6 +41,7 @@ const VRSTE = {
 export function pokreniPosluzitelj({ dist, zbirka, jelovnik }) {
   const glazba = zbirkaRukovatelj(zbirka);
   const preuzmi = preuzimacRukovatelj(zbirka);
+  const stanje = stanjeRukovatelj(zbirka);
 
   const posluzitelj = http.createServer((req, res) => {
     /* Jelovnik ide prvi, i jedini je koji ne traži ni zbirku ni build nego
@@ -52,14 +54,16 @@ export function pokreniPosluzitelj({ dist, zbirka, jelovnik }) {
       return;
     }
 
-    /* Redom: zbirka, preuzimač, pa gotov build. Prva dvojica sama proslijede
-       dalje ono što nije njihovo, istim `next()` dogovorom kao u Viteu. */
-    glazba(req, res, () => {
-      Promise.resolve(preuzmi(req, res, () => posluziBuild(dist, req, res))).catch((greska) => {
-        res.statusCode = 500;
-        res.end(String((greska && greska.message) || greska));
-      });
-    });
+    /* Redom: stanje, zbirka, preuzimač, pa gotov build. Svi prije builda sami
+       proslijede dalje ono što nije njihovo, istim `next()` dogovorom kao u Viteu. */
+    stanje(req, res, () =>
+      glazba(req, res, () => {
+        Promise.resolve(preuzmi(req, res, () => posluziBuild(dist, req, res))).catch((greska) => {
+          res.statusCode = 500;
+          res.end(String((greska && greska.message) || greska));
+        });
+      }),
+    );
   });
 
   return new Promise((vrati, odbij) => {

@@ -18,6 +18,7 @@ import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import elektronskiNadograditelj from "electron-updater";
 import { pokreniPosluzitelj } from "./posluzitelj.mjs";
+import { procitajStanje } from "../scripts/stanje.mjs";
 import { windowsBrani } from "./zapreka.mjs";
 import { izvezi, izveziZip } from "../scripts/izvezi.mjs";
 
@@ -523,13 +524,19 @@ const KLJUC_LISTE = "lucijanka.glazba.liste";
 /**
  * Vlastiti popisi, onakvi kakve stranica sada ima.
  *
- * Stoje u `localStorage` stranice, a ne na disku uz zbirku, pa ih se pita
- * prozor. Popisi koje je Lucify nekad sam složio iz mapa (`lista-mapa-…`)
- * stranica pri otvaranju izbaci, pa se ne nude ni ovdje.
+ * Prvo iz datoteke uz zbirku (`scripts/stanje.mjs`), u koju ih stranica
+ * zapisuje pri svakoj promjeni. Tek ako nje još nema, pita se prozor, jer su
+ * popisi dotad stajali samo u njegovu `localStorage`. Popisi koje je Lucify
+ * nekad sam složio iz mapa (`lista-mapa-…`) stranica pri otvaranju izbaci, pa
+ * se ne nude ni ovdje.
  *
  * @returns {Promise<{ id: string, naslov: string, pjesme: string[] }[]>}
  */
 async function procitajListe() {
+  const naDisku = zbirkaSada ? procitajStanje(zbirkaSada) : null;
+  if (naDisku && naDisku.liste) {
+    return naDisku.liste.filter((l) => !l.id.startsWith("lista-mapa-"));
+  }
   if (!prozor) return [];
   try {
     const niz = await prozor.webContents.executeJavaScript(

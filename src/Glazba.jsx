@@ -39,7 +39,7 @@ import {
 import * as svirac from "./glazba-svirac.mjs";
 import { KORIJEN, mmss, odbroj } from "./glazba-svirac.mjs";
 import { ANDROID, NA_UREDAJU, omotAdresa, ukloniPjesmu, zbirkaUredaja } from "./glazba-izvor.mjs";
-import { spojiListe } from "./glazba-liste.mjs";
+import { spojiListe, spojiStanje } from "./glazba-liste.mjs";
 import { odrediJezike } from "./glazba-mape.mjs";
 import { adresaSnimke } from "./glazba-veze.mjs";
 import Znak from "./Znak.jsx";
@@ -587,6 +587,59 @@ export default function Glazba() {
   useEffect(() => spremi(KLJUC_SRCA, srca), [srca]);
   useEffect(() => spremi(KLJUC_LISTE, liste), [liste]);
   useEffect(() => spremi(KLJUC_JEZICI, jezici), [jezici]);
+
+  /* Gdje iza Lucifyja stoji poslužitelj, srca, popisi i premještene pjesme
+     stoje i u datoteci uz zbirku (`scripts/stanje.mjs`), jer `localStorage`
+     namjenske aplikacije zna nestati sam. Dok datoteka ne stigne, ne piše se u
+     nju ništa: inače bi prazan `localStorage` stigao prvi i nju ispraznio.
+     „nema” znači da se piše samo u `localStorage`: na uređaju, ili kad
+     poslužitelj za stanje ne zna. */
+  const [disk, setDisk] = useState(NA_UREDAJU ? "nema" : "ceka");
+  useEffect(() => {
+    if (NA_UREDAJU) return undefined;
+    let ziv = true;
+    fetch(KORIJEN + "stanje", { cache: "no-store" })
+      .then((o) => (o.ok ? o.json() : Promise.reject(new Error(String(o.status)))))
+      .then((/** @type {any} */ o) => {
+        if (!ziv) return;
+        const s = spojiStanje(o && o.stanje, {
+          srca: ucitaj(KLJUC_SRCA, []),
+          liste: ucitaj(KLJUC_LISTE, []),
+          jezici: ucitaj(KLJUC_JEZICI, {}),
+        });
+        setSrca(s.srca);
+        setListe(s.liste.filter((l) => !String(l && l.id).startsWith(SIJANI_POPIS)));
+        setJezici(s.jezici);
+        setDisk("spreman");
+      })
+      .catch(() => {
+        if (ziv) setDisk("nema");
+      });
+    return () => {
+      ziv = false;
+    };
+  }, []);
+
+  /* Zapisi idu jedan za drugim, a ne usporedo, da stariji ne stigne iza
+     novijega i ne prepiše ga. Svaka promjena ide odmah: srce ili pjesma u
+     popisu rijetka su, a odgoda bi se izgubila zatvaranjem prozora. */
+  const redZapisa = useRef(/** @type {Promise<unknown>} */ (Promise.resolve()));
+  useEffect(() => {
+    if (disk !== "spreman") return;
+    const tijelo = JSON.stringify({ srca, liste, jezici });
+    redZapisa.current = redZapisa.current
+      .then(() =>
+        fetch(KORIJEN + "stanje", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: tijelo,
+          keepalive: tijelo.length < 60000,
+        }),
+      )
+      .catch(() => {
+        /* Nije zapisano ovaj put; sljedeća promjena nosi cijelo stanje iznova. */
+      });
+  }, [disk, srca, liste, jezici]);
 
   /* Zeleni obrub fokusa pokazuje se samo onomu tko se kreće tipkom Tab. Prije
      se palio i mišem: klik na gumb ili klizač, pa razmaknica ili strelica, i

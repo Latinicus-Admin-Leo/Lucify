@@ -6,6 +6,7 @@ import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 import { zbirkaNaRazvoju } from "./scripts/posluga.mjs";
 import { preuzimacNaRazvoju } from "./scripts/preuzimac.mjs";
+import { stanjeNaRazvoju } from "./scripts/stanje.mjs";
 
 /**
  * Gdje objavljeni Lucify stoji na poslužitelju.
@@ -150,6 +151,7 @@ export default defineConfig(({ mode }) => ({
     /* Ista zbirka kao u gotovom programu, vidi `zbirkaZaRazvoj()`. */
     zbirkaNaRazvoju(zbirka),
     preuzimacNaRazvoju(zbirka),
+    stanjeNaRazvoju(zbirka),
     ...pwa(mode),
   ],
   resolve: {
