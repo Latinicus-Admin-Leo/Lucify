@@ -39,7 +39,7 @@ import {
 import * as svirac from "./glazba-svirac.mjs";
 import { KORIJEN, mmss, odbroj } from "./glazba-svirac.mjs";
 import { ANDROID, NA_UREDAJU, omotAdresa, ukloniPjesmu, zbirkaUredaja } from "./glazba-izvor.mjs";
-import { spojiListe, spojiStanje, stoOdlazi } from "./glazba-liste.mjs";
+import { premjestiPolicu, slozi, spojiListe, spojiStanje, stoOdlazi } from "./glazba-liste.mjs";
 import { odrediJezike } from "./glazba-mape.mjs";
 import { adresaSnimke } from "./glazba-veze.mjs";
 import Znak from "./Znak.jsx";
@@ -130,6 +130,24 @@ const KLJUC_JEZICI = "lucijanka.glazba.jezici";
 /* Vlastita imena triju stalnih polica (srca i dviju glavnih mapa), kad ih je
    čovjek preimenovao. Vlastiti popisi ime nose sami. */
 const KLJUC_NAZIVI = "lucijanka.glazba.nazivi";
+/* Redoslijed polica u zbirci, kad ih je čovjek sam složio povlačenjem. Prazan
+   znači zadani red. */
+const KLJUC_POREDAK = "lucijanka.glazba.poredak";
+/* Širine lijevoga i desnoga stupca. One su stvar zaslona, a ne zbirke, pa ne
+   idu u datoteku uz zbirku nego ostaju samo u `localStorage`. */
+const KLJUC_SIRINE = "lucijanka.glazba.sirine";
+
+/* Mjere stupaca. Zbirka povučena ispod `USKA_PRAG` skupi se u uski stupac sa
+   samim omotima, kao u glazbenim programima; glavni stupac pritom uvijek
+   zadrži barem `GLAVNO_NAJMANJE`. */
+const LIJEVO = 292;
+const DESNO = 328;
+const USKA = 72;
+const USKA_PRAG = 170;
+const LIJEVO_NAJMANJE = 220;
+const DESNO_NAJMANJE = 260;
+const STUPAC_NAJVISE = 520;
+const GLAVNO_NAJMANJE = 420;
 
 /* Dvije glavne mape zbirke. Treća, „Sve pjesme”, ne stoji u zbirci nego samo
    iza gornje tražilice, jer se traži po svemu. */
@@ -142,6 +160,24 @@ const OSTALE = "ostale";
 const jednina = (n) => n % 10 === 1 && n % 100 !== 11;
 /** @param {number} n */
 const malo = (n) => n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14);
+
+/**
+ * Širina lijevoga ili desnoga stupca, omeđena. Zbirka uža od praga skoči u
+ * uski stupac, a nijedan stupac ne smije glavnomu uzeti više nego što mu
+ * ostavlja `GLAVNO_NAJMANJE`, ni više od trećine prozora, koliko mu dopušta i
+ * CSS.
+ *
+ * @param {"lijevo" | "desno"} strana @param {number} v
+ * @param {number} druga širina drugoga stupca, ili 0 kad ga nema
+ */
+function omediSirinu(strana, v, druga) {
+  if (strana === "lijevo" && v < USKA_PRAG) return USKA;
+  const najmanje = strana === "lijevo" ? LIJEVO_NAJMANJE : DESNO_NAJMANJE;
+  const prozor = typeof window === "undefined" ? 1600 : window.innerWidth;
+  /* 32 su rubovi sadržaja i dva razmaka između stupaca. */
+  const najvise = Math.min(STUPAC_NAJVISE, prozor * 0.34, prozor - 32 - GLAVNO_NAJMANJE - druga);
+  return Math.round(Math.max(najmanje, Math.min(najvise, v)));
+}
 
 /** @param {string} k @param {any} zadano */
 function ucitaj(k, zadano) {
@@ -362,12 +398,16 @@ function Stupci() {
  * Zato su i sve funkcije koje prima stalne, a o retku samom govore mu brojevi i
  * zastavice, a ne cijelo stanje.
  *
- * @param {{ p: any, i: number, jeSada: boolean, tece: boolean, srcem: boolean,
+ * `mjesto` je mjesto pjesme u polici, prije poretka i tražilice. Ista pjesma u
+ * vlastitom popisu smije stajati dvaput, pa se po samoj oznaci ne bi znalo
+ * koju od njih izbornik miče.
+ *
+ * @param {{ p: any, i: number, mjesto: number, jeSada: boolean, tece: boolean, srcem: boolean,
  *           otvoren: boolean, mreza: boolean, t: (s: string) => string,
  *           naPusti: (i: number, jeSada: boolean) => void, naSrce: (id: string) => void,
- *           naJelovnik: (e: any, id: string) => void }} props
+ *           naJelovnik: (e: any, id: string, mjesto: number) => void }} props
  */
-function RedakPjesme({ p, i, jeSada, tece, srcem, otvoren, mreza, t, naPusti, naSrce, naJelovnik }) {
+function RedakPjesme({ p, i, mjesto, jeSada, tece, srcem, otvoren, mreza, t, naPusti, naSrce, naJelovnik }) {
   return (
     <div
       data-pjesma={p.id}
@@ -447,7 +487,7 @@ function RedakPjesme({ p, i, jeSada, tece, srcem, otvoren, mreza, t, naPusti, na
           className="gvise"
           aria-label={t("Više o pjesmi")}
           aria-expanded={otvoren ? "true" : "false"}
-          onClick={(e) => naJelovnik(e, p.id)}
+          onClick={(e) => naJelovnik(e, p.id, mjesto)}
         >
           <MoreHorizontal size={16} aria-hidden="true" />
         </button>
@@ -481,6 +521,33 @@ export default function Glazba() {
   const [nazivi, setNazivi] = useState(
     /** @type {() => Record<string, string>} */ (() => ucitaj(KLJUC_NAZIVI, {})),
   );
+  const [poredakPolica, setPoredakPolica] = useState(
+    /** @type {() => string[]} */ (
+      () => {
+        const v = ucitaj(KLJUC_POREDAK, []);
+        return Array.isArray(v) ? v : [];
+      }
+    ),
+  );
+  /* Polica koja se povlači i ona nad kojom trenutno stoji, s time ide li
+     ispred nje ili iza. */
+  const [vucemPolicu, setVucemPolicu] = useState(/** @type {string | null} */ (null));
+  const [nadPolicom, setNadPolicom] = useState(
+    /** @type {{ id: string, iza: boolean } | null} */ (null),
+  );
+  /* Pjesma koja je već u popisu u koji se dodaje. Tada se pita, kao u
+     glazbenim programima, a ne preskače šutke: ista pjesma dvaput u popisu
+     zna biti baš ono što se hoće. */
+  const [vecUPopisu, setVecUPopisu] = useState(
+    /** @type {{ lista: string, pjesma: string } | null} */ (null),
+  );
+  const [sirine, setSirine] = useState(() => {
+    const s = ucitaj(KLJUC_SIRINE, null);
+    const broj = (/** @type {any} */ v, /** @type {number} */ zadano) =>
+      typeof v === "number" && Number.isFinite(v) ? v : zadano;
+    return { lijevo: broj(s && s.lijevo, LIJEVO), desno: broj(s && s.desno, DESNO) };
+  });
+  const sadrzajRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   /* Polica koja se preimenuje, briše ili prazni. `sPjesmama` je kvačica u
      okviru za brisanje vlastitoga popisa. */
   const [preimenujZa, setPreimenujZa] = useState(
@@ -525,7 +592,7 @@ export default function Glazba() {
      Lucifyja, jer glazba mora svirati i kad se Lucify zatvori, a React
      bi pri zatvaranju odnio i zvuk i red čekanja. Odavde se ono samo gleda i
      prebacuje, kao i mjerač vremena, koji inače ne bi imao tko otkucavati. */
-  const { red, sada, svira, mijesaj, ponovi, imaMjerac, mjeracKraj, izvor } =
+  const { red, na, sada, svira, mijesaj, ponovi, imaMjerac, mjeracKraj, izvor } =
     useSyncExternalStore(svirac.prati, svirac.glavno, svirac.glavno);
   /* Ovdje stoji i mjesto na kojem se izbornik otvara, jer je `fixed`. `gore`
      znači da visi s gornje strane gumba, pa mu se mjesto zadaje odozdo. */
@@ -612,6 +679,8 @@ export default function Glazba() {
   useEffect(() => spremi(KLJUC_LISTE, liste), [liste]);
   useEffect(() => spremi(KLJUC_JEZICI, jezici), [jezici]);
   useEffect(() => spremi(KLJUC_NAZIVI, nazivi), [nazivi]);
+  useEffect(() => spremi(KLJUC_POREDAK, poredakPolica), [poredakPolica]);
+  useEffect(() => spremi(KLJUC_SIRINE, sirine), [sirine]);
 
   /* Gdje iza Lucifyja stoji poslužitelj, srca, popisi i premještene pjesme
      stoje i u datoteci uz zbirku (`scripts/stanje.mjs`), jer `localStorage`
@@ -632,11 +701,16 @@ export default function Glazba() {
           liste: ucitaj(KLJUC_LISTE, []),
           jezici: ucitaj(KLJUC_JEZICI, {}),
           nazivi: ucitaj(KLJUC_NAZIVI, {}),
+          poredak: (() => {
+            const v = ucitaj(KLJUC_POREDAK, []);
+            return Array.isArray(v) ? v : [];
+          })(),
         });
         setSrca(s.srca);
         setListe(s.liste.filter((l) => !String(l && l.id).startsWith(SIJANI_POPIS)));
         setJezici(s.jezici);
         setNazivi(s.nazivi);
+        setPoredakPolica(s.poredak);
         setDisk("spreman");
       })
       .catch(() => {
@@ -653,7 +727,7 @@ export default function Glazba() {
   const redZapisa = useRef(/** @type {Promise<unknown>} */ (Promise.resolve()));
   useEffect(() => {
     if (disk !== "spreman") return;
-    const tijelo = JSON.stringify({ srca, liste, jezici, nazivi });
+    const tijelo = JSON.stringify({ srca, liste, jezici, nazivi, poredak: poredakPolica });
     redZapisa.current = redZapisa.current
       .then(() =>
         fetch(KORIJEN + "stanje", {
@@ -666,7 +740,7 @@ export default function Glazba() {
       .catch(() => {
         /* Nije zapisano ovaj put; sljedeća promjena nosi cijelo stanje iznova. */
       });
-  }, [disk, srca, liste, jezici, nazivi]);
+  }, [disk, srca, liste, jezici, nazivi, poredakPolica]);
 
   /* Zeleni obrub fokusa pokazuje se samo onomu tko se kreće tipkom Tab. Prije
      se palio i mišem: klik na gumb ili klizač, pa razmaknica ili strelica, i
@@ -748,8 +822,8 @@ export default function Glazba() {
     ];
     for (const l of liste) out.push({ ...l, vrsta: "lista" });
     for (const p of (zbirka && zbirka.police) || []) out.push({ ...p, vrsta: "izvodac" });
-    return out;
-  }, [srca, sve, liste, zbirka, t, glavnaMapa, nazivi]);
+    return slozi(out, poredakPolica);
+  }, [srca, sve, liste, zbirka, t, glavnaMapa, nazivi, poredakPolica]);
 
   const viđene = useMemo(() => {
     const n = fold(traziZbirku.trim());
@@ -773,7 +847,8 @@ export default function Glazba() {
       const prve = [];
       for (const id of p.pjesme) {
         const x = poId.get(id);
-        if (x && x.omot) prve.push(x.omot);
+        /* Pjesma koja u popisu stoji dvaput ne daje mozaiku dva ista omota. */
+        if (x && x.omot && !prve.includes(x.omot)) prve.push(x.omot);
         if (prve.length >= 4) break;
       }
       m.set(p.id, prve);
@@ -784,8 +859,12 @@ export default function Glazba() {
   const polica = useMemo(() => {
     const nadena = police.find((p) => p.id === otvoreno.id);
     if (nadena) return nadena;
-    /* Nema li više te police, otvara se glavna mapa u kojoj ičega ima. */
-    return police.find((p) => p.vrsta === "mapa" && p.pjesme.length) || police[1];
+    /* Nema li više te police, otvara se glavna mapa u kojoj ičega ima. Po
+       mjestu se ne traži, jer police mogu biti presložene. */
+    return (
+      police.find((p) => p.vrsta === "mapa" && p.pjesme.length) ||
+      /** @type {any} */ (police.find((p) => p.id === HRVATSKE))
+    );
   }, [police, otvoreno]);
 
   /* Koji popis u zbirci svira: onaj s kojega je red pušten, a ako je pušten
@@ -796,28 +875,57 @@ export default function Glazba() {
     return glavnaMapa(sada);
   }, [sada, izvor, police, glavnaMapa]);
 
-  /** Pjesme otvorene police, poredane i pretražene. */
-  const prikazane = useMemo(() => {
-    if (!polica) return [];
-    let lista = polica.pjesme.map((id) => poId.get(id)).filter(Boolean);
+  /**
+   * Pjesme otvorene police, poredane i pretražene, i uz svaku njezino mjesto u
+   * polici (`mjesta`), jer ista pjesma u popisu smije stajati i dvaput.
+   */
+  const { prikazane, mjesta } = useMemo(() => {
+    if (!polica) return { prikazane: [], mjesta: [] };
+    let lista = polica.pjesme
+      .map((id, k) => ({ p: poId.get(id), k }))
+      .filter((x) => x.p);
     const n = fold(trazi.trim());
-    if (n) lista = lista.filter((p) => fold(p.naslov + " " + p.izvodac).includes(n));
-    const kopija = [...lista];
+    if (n) lista = lista.filter((x) => fold(x.p.naslov + " " + x.p.izvodac).includes(n));
     /* Smjer množi samo glavnu usporedbu, a naslov ostaje razrješivač i uvijek
        ide od A do Ž. Da se cijeli popis na kraju okretao, iste bi se datume
        poredalo unatrag, pa bi se pri svakom okretu ispremiješale i one pjesme
-       koje se poretkom uopće ne razlikuju. */
+       koje se poretkom uopće ne razlikuju. Zadnji razrješivač je mjesto u
+       polici, za pjesmu koja u njoj stoji dvaput. */
     const smjer = silazno ? -1 : 1;
-    const poNaslovu = (a, b) => a.naslov.localeCompare(b.naslov, "hr");
-    if (poredak === "naslov") kopija.sort((a, b) => smjer * poNaslovu(a, b));
+    const poNaslovu = (a, b) => a.p.naslov.localeCompare(b.p.naslov, "hr") || a.k - b.k;
+    if (poredak === "naslov")
+      lista.sort((a, b) => smjer * a.p.naslov.localeCompare(b.p.naslov, "hr") || a.k - b.k);
     else if (poredak === "trajanje")
-      kopija.sort((a, b) => smjer * (a.trajanje - b.trajanje) || poNaslovu(a, b));
+      lista.sort((a, b) => smjer * (a.p.trajanje - b.p.trajanje) || poNaslovu(a, b));
     else
-      kopija.sort(
-        (a, b) => smjer * String(a.dodano).localeCompare(String(b.dodano)) || poNaslovu(a, b),
+      lista.sort(
+        (a, b) => smjer * String(a.p.dodano).localeCompare(String(b.p.dodano)) || poNaslovu(a, b),
       );
-    return kopija;
+    return { prikazane: lista.map((x) => x.p), mjesta: lista.map((x) => x.k) };
   }, [polica, poId, trazi, poredak, silazno]);
+
+  /* Ključ retka: oznaka pjesme, a za njezino drugo pojavljivanje u istom
+     popisu oznaka s brojem, jer React ne trpi dva ista ključa. */
+  const kljucevi = useMemo(() => {
+    /** @type {Map<string, number>} */
+    const vidjeno = new Map();
+    return prikazane.map((p) => {
+      const n = (vidjeno.get(p.id) || 0) + 1;
+      vidjeno.set(p.id, n);
+      return n === 1 ? p.id : p.id + "~" + n;
+    });
+  }, [prikazane]);
+
+  /* Koji redak svira. Stoji li pjesma u popisu dvaput, zeleni se samo onaj s
+     kojega je puštena: red je pušten s ove police i na tom mjestu stoji ona.
+     Inače, ili kad je popis u međuvremenu drukčije poredan, prvi. */
+  const sadaRedak = useMemo(() => {
+    if (!sada) return -1;
+    if (izvor === polica.id && red[na] === sada.id && prikazane[na] && prikazane[na].id === sada.id) {
+      return na;
+    }
+    return prikazane.findIndex((p) => p.id === sada.id);
+  }, [sada, izvor, polica.id, red, na, prikazane]);
 
   const trajanjePolice = useMemo(
     () => prikazane.reduce((s, p) => s + (p.trajanje || 0), 0),
@@ -826,10 +934,7 @@ export default function Glazba() {
 
   const mozaik = useMemo(
     () =>
-      prikazane
-        .map((p) => p.omot)
-        .filter(Boolean)
-        .slice(0, 4),
+      [...new Set(prikazane.map((p) => p.omot).filter(Boolean))].slice(0, 4),
     [prikazane],
   );
 
@@ -857,16 +962,17 @@ export default function Glazba() {
     [prikazane, pusti, polica.id],
   );
 
-  const otvoriJelovnik = useCallback((/** @type {any} */ e, /** @type {string} */ id) => {
+  const otvoriJelovnik = useCallback((/** @type {any} */ e, /** @type {string} */ id, /** @type {number} */ mjesto) => {
     e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect();
     /* Izbornik ima i dno, pa se uz donji rub prozora otvara prema gore. */
     const gore = window.innerHeight - r.bottom < 330;
     setJelovnik((j) =>
-      j && j.id === id
+      j && j.id === id && j.mjesto === mjesto
         ? null
         : {
             id,
+            mjesto,
             x: Math.min(r.left, window.innerWidth - 240),
             y: gore ? window.innerHeight - r.top + 6 : r.bottom + 6,
             gore,
@@ -884,9 +990,9 @@ export default function Glazba() {
     (kako, samoAkoNijeVidljiv) => {
       const okvir = glavnoRef.current;
       if (!okvir || !sada) return;
-      const redak = /** @type {HTMLElement | null} */ (
-        okvir.querySelector('[data-pjesma="' + CSS.escape(sada.id) + '"]')
-      );
+      /* Po razredu, a ne po oznaci pjesme: ista pjesma u popisu zna stajati
+         dvaput, a zelen je samo redak s kojega svira. */
+      const redak = /** @type {HTMLElement | null} */ (okvir.querySelector(".gredak.pjesma.sada"));
       if (!redak) return;
       if (samoAkoNijeVidljiv) {
         const o = okvir.getBoundingClientRect();
@@ -945,7 +1051,8 @@ export default function Glazba() {
           if (!uklanjam) setZaUkloniti(null);
         } else if (brisiPolicu) {
           if (!brisemPolicu) setBrisiPolicu(null);
-        } else if (preimenujZa) setPreimenujZa(null);
+        } else if (vecUPopisu) setVecUPopisu(null);
+        else if (preimenujZa) setPreimenujZa(null);
         else if (noviPopisZa !== null) setNoviPopisZa(null);
         else if (jelovnik) setJelovnik(null);
         else if (mjeracOtvoren) setMjeracOtvoren(null);
@@ -964,7 +1071,7 @@ export default function Glazba() {
     };
     document.addEventListener("keydown", naTipku);
     return () => document.removeEventListener("keydown", naTipku);
-  }, [prekidac, jelovnik, mjeracOtvoren, zbirkaOtvorena, noviPopisZa, zaUkloniti, uklanjam, brisiPolicu, brisemPolicu, preimenujZa]);
+  }, [prekidac, jelovnik, mjeracOtvoren, zbirkaOtvorena, noviPopisZa, zaUkloniti, uklanjam, brisiPolicu, brisemPolicu, preimenujZa, vecUPopisu]);
 
   useEffect(() => {
     if (!jelovnik) return;
@@ -1040,13 +1147,11 @@ export default function Glazba() {
     setNoviPopisZa(null);
   }, [novoIme, noviPopisZa]);
 
+  /* Na kraj popisa, i kad je pjesma već u njemu: je li to ono što se hoće,
+     pita se prije, iz izbornika. */
   const uPopis = useCallback((idListe, idPjesme) => {
     setListe((l) =>
-      l.map((x) =>
-        x.id === idListe && !x.pjesme.includes(idPjesme)
-          ? { ...x, pjesme: [...x.pjesme, idPjesme] }
-          : x,
-      ),
+      l.map((x) => (x.id === idListe ? { ...x, pjesme: [...x.pjesme, idPjesme] } : x)),
     );
   }, []);
 
@@ -1057,12 +1162,21 @@ export default function Glazba() {
    * smije rasložiti. Glavne mape i police po izvođačima nisu popisi nego pogled
    * na zbirku, pa se odande pjesma ne miče nego **uklanja** — skroz, sa
    * snimkom, vidi `ukloni` ispod.
+   *
+   * Miče se samo ono jedno pojavljivanje na kojem je izbornik otvoren. Ako se
+   * popis u međuvremenu promijenio pa na tom mjestu više nije ta pjesma, miče
+   * se njezino prvo pojavljivanje.
+   *
+   * @param {string} idListe @param {string} idPjesme @param {number} mjesto
    */
-  const izPopisa = useCallback((idListe, idPjesme) => {
+  const izPopisa = useCallback((idListe, idPjesme, mjesto) => {
     setListe((l) =>
-      l.map((x) =>
-        x.id === idListe ? { ...x, pjesme: x.pjesme.filter((p) => p !== idPjesme) } : x,
-      ),
+      l.map((x) => {
+        if (x.id !== idListe) return x;
+        const k = x.pjesme[mjesto] === idPjesme ? mjesto : x.pjesme.indexOf(idPjesme);
+        if (k < 0) return x;
+        return { ...x, pjesme: [...x.pjesme.slice(0, k), ...x.pjesme.slice(k + 1)] };
+      }),
     );
   }, []);
 
@@ -1128,10 +1242,10 @@ export default function Glazba() {
    * @param {any} e @param {{ id: string, vrsta: string }} p
    */
   const otvoriJelovnikPolice = useCallback((e, p) => {
-    if (p.vrsta !== "lista" && p.vrsta !== "mapa" && p.vrsta !== "srca") return;
+    if (p.vrsta === "sve") return;
     e.preventDefault();
     e.stopPropagation();
-    const gore = window.innerHeight - e.clientY < 140;
+    const gore = window.innerHeight - e.clientY < 240;
     setJelovnik({
       id: "polica:" + p.id,
       polica: { id: p.id, vrsta: p.vrsta },
@@ -1140,6 +1254,80 @@ export default function Glazba() {
       gore,
     });
   }, []);
+
+  /**
+   * Polica na novo mjesto: povučena mišem na drugu, ili iz izbornika za jedno
+   * mjesto gore ili dolje. Red se uvijek pamti za sve police, pa i one koje
+   * trenutni filtar skriva, da se ne izgube kad se filtar promijeni.
+   * @param {string} id @param {string} cilj @param {boolean} iza
+   */
+  const pomakniPolicu = useCallback(
+    (id, cilj, iza) => {
+      setPoredakPolica(premjestiPolicu(police.map((x) => x.id), id, cilj, iza));
+    },
+    [police],
+  );
+
+  /**
+   * Povlačenje ruba između stupaca, kao u glazbenim programima. Dok se vuče,
+   * širina ide ravno u CSS varijablu, a u stanje tek kad se pusti: inače bi se
+   * pri svakom pomaku miša iznova crtao cijeli Lucify, s pet stotina redaka.
+   * @param {any} e @param {"lijevo" | "desno"} strana
+   */
+  const vuciRub = useCallback(
+    (e, strana) => {
+      if (e.button !== 0) return;
+      const okvir = sadrzajRef.current;
+      if (!okvir) return;
+      e.preventDefault();
+      const rucka = /** @type {HTMLElement} */ (e.currentTarget);
+      rucka.setPointerCapture(e.pointerId);
+      const pocetak = e.clientX;
+      const bila = sirine[strana];
+      let nova = bila;
+      const druga = strana === "lijevo" ? (panel ? sirine.desno : 0) : sirine.lijevo;
+      document.documentElement.classList.add("gvucerub");
+      /** @param {PointerEvent} ev */
+      const pomak = (ev) => {
+        const d = strana === "lijevo" ? ev.clientX - pocetak : pocetak - ev.clientX;
+        nova = omediSirinu(strana, bila + d, druga);
+        okvir.style.setProperty("--" + strana, nova + "px");
+        if (strana === "lijevo") okvir.classList.toggle("uska", nova <= USKA);
+      };
+      const kraj = () => {
+        rucka.removeEventListener("pointermove", pomak);
+        rucka.removeEventListener("pointerup", kraj);
+        rucka.removeEventListener("pointercancel", kraj);
+        document.documentElement.classList.remove("gvucerub");
+        setSirine((s) => ({ ...s, [strana]: nova }));
+      };
+      rucka.addEventListener("pointermove", pomak);
+      rucka.addEventListener("pointerup", kraj);
+      rucka.addEventListener("pointercancel", kraj);
+    },
+    [sirine, panel],
+  );
+
+  /** Rub strelicama, za tipkovnicu. @param {any} e @param {"lijevo" | "desno"} strana */
+  const rubTipkom = useCallback(
+    (e, strana) => {
+      const korak = e.key === "ArrowRight" ? 24 : e.key === "ArrowLeft" ? -24 : 0;
+      if (!korak) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const druga = strana === "lijevo" ? (panel ? sirine.desno : 0) : sirine.lijevo;
+      setSirine((s) => {
+        const d = strana === "lijevo" ? korak : -korak;
+        let v = s[strana] + d;
+        /* Zbirka između uske i najmanje pune širine ne staje: strelica je
+           prebaci s jedne na drugu. */
+        if (strana === "lijevo" && d < 0 && s.lijevo <= LIJEVO_NAJMANJE) v = USKA;
+        if (strana === "lijevo" && d > 0 && s.lijevo <= USKA) v = LIJEVO_NAJMANJE;
+        return { ...s, [strana]: omediSirinu(strana, v, druga) };
+      });
+    },
+    [sirine, panel],
+  );
 
   /** Izvorno ime stalne police, ono koje vrijedi kad vlastitoga nema. @param {string} id */
   const izvornoIme = useCallback(
@@ -1331,8 +1519,9 @@ export default function Glazba() {
     );
   }
 
+  const uska = sirine.lijevo <= USKA;
   const razredi =
-    "gsadrzaj" + (panel ? " spanelom" : "") + (zbirkaOtvorena ? " szbirkom" : "");
+    "gsadrzaj" + (panel ? " spanelom" : "") + (zbirkaOtvorena ? " szbirkom" : "") + (uska ? " uska" : "");
 
   /** Natpis vrste police, iznad naslova i ispod njega u zbirci. @param {string} vrsta */
   const vrstaPolice = (vrsta) =>
@@ -1479,7 +1668,11 @@ export default function Glazba() {
         </div>
       </div>
 
-      <div className={razredi}>
+      <div
+        className={razredi}
+        ref={sadrzajRef}
+        style={stil({ "--lijevo": sirine.lijevo + "px", "--desno": sirine.desno + "px" })}
+      >
         <div
           className="gzastor"
           onClick={() => {
@@ -1488,10 +1681,48 @@ export default function Glazba() {
           }}
         />
 
+        {/* Rubovi između stupaca, koji se vuku mišem. Stoje u razmaku među
+            stupcima, a ne u samim stupcima, jer ovi imaju vlastiti klizač pa bi
+            rub s njima i klizio. Dvoklik vraća zadanu širinu. */}
+        <div
+          className="grub lijevi"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("Širina zbirke")}
+          aria-valuenow={sirine.lijevo}
+          tabIndex={0}
+          onPointerDown={(e) => vuciRub(e, "lijevo")}
+          onKeyDown={(e) => rubTipkom(e, "lijevo")}
+          onDoubleClick={() => setSirine((s) => ({ ...s, lijevo: LIJEVO }))}
+        />
+        {panel ? (
+          <div
+            className="grub desni"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("Širina ploče sa strane")}
+            aria-valuenow={sirine.desno}
+            tabIndex={0}
+            onPointerDown={(e) => vuciRub(e, "desno")}
+            onKeyDown={(e) => rubTipkom(e, "desno")}
+            onDoubleClick={() => setSirine((s) => ({ ...s, desno: DESNO }))}
+          />
+        ) : null}
+
         <nav className="gzbirka" aria-label={t("Zbirka")}>
           <div className="gzglava">
+            {/* U uskom stupcu glava je samo tipka koja zbirku opet raširi. */}
+            <button
+              type="button"
+              className="gprosiri"
+              aria-label={t("Raširi zbirku")}
+              title={t("Raširi zbirku")}
+              onClick={() => setSirine((s) => ({ ...s, lijevo: LIJEVO }))}
+            >
+              <Library size={20} aria-hidden="true" />
+            </button>
             <ListMusic size={18} aria-hidden="true" />
-            {t("Tvoja zbirka")}
+            <span className="gzime">{t("Tvoja zbirka")}</span>
             <button
               type="button"
               className="novi"
@@ -1539,8 +1770,49 @@ export default function Glazba() {
                 <button
                   key={p.id}
                   type="button"
-                  className={"gstavka" + (ovdjeSvira ? " svira" : "")}
+                  className={
+                    "gstavka" +
+                    (ovdjeSvira ? " svira" : "") +
+                    (vucemPolicu === p.id ? " vuce" : "") +
+                    (nadPolicom && nadPolicom.id === p.id && vucemPolicu !== p.id
+                      ? nadPolicom.iza
+                        ? " nad-iza"
+                        : " nad-ispred"
+                      : "")
+                  }
                   aria-current={p.id === polica.id ? "true" : undefined}
+                  title={uska ? p.naslov : undefined}
+                  /* Police se slažu povlačenjem, kao u glazbenim programima. Na
+                     dodir povlačenja nema, pa ondje isto rade „Pomakni gore” i
+                     „Pomakni dolje” iz izbornika, na dugi dodir. */
+                  draggable
+                  onDragStart={(e) => {
+                    setVucemPolicu(p.id);
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", p.naslov);
+                  }}
+                  onDragOver={(e) => {
+                    if (!vucemPolicu) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    const r = e.currentTarget.getBoundingClientRect();
+                    const iza = e.clientY > r.top + r.height / 2;
+                    if (!nadPolicom || nadPolicom.id !== p.id || nadPolicom.iza !== iza) {
+                      setNadPolicom({ id: p.id, iza });
+                    }
+                  }}
+                  onDrop={(e) => {
+                    if (!vucemPolicu) return;
+                    e.preventDefault();
+                    const r = e.currentTarget.getBoundingClientRect();
+                    pomakniPolicu(vucemPolicu, p.id, e.clientY > r.top + r.height / 2);
+                    setVucemPolicu(null);
+                    setNadPolicom(null);
+                  }}
+                  onDragEnd={() => {
+                    setVucemPolicu(null);
+                    setNadPolicom(null);
+                  }}
                   onContextMenu={(e) => otvoriJelovnikPolice(e, p)}
                   onClick={() => {
                     setOtvoreno({ vrsta: p.vrsta, id: p.id });
@@ -1742,16 +2014,17 @@ export default function Glazba() {
             </div>
 
             {prikazane.map((p, i) => {
-              const jeSada = !!sada && sada.id === p.id;
+              const jeSada = i === sadaRedak;
               return (
                 <Redak
-                  key={p.id}
+                  key={kljucevi[i]}
                   p={p}
                   i={i}
+                  mjesto={mjesta[i]}
                   jeSada={jeSada}
                   tece={jeSada && svira}
                   srcem={srcaSkup.has(p.id)}
-                  otvoren={!!jelovnik && jelovnik.id === p.id}
+                  otvoren={!!jelovnik && jelovnik.id === p.id && jelovnik.mjesto === mjesta[i]}
                   mreza={mreza}
                   t={t}
                   naPusti={pustiRedak}
@@ -2130,29 +2403,70 @@ export default function Glazba() {
           {(() => {
             const p = police.find((x) => x.id === jelovnik.polica.id);
             if (!p) return null;
+            /* Gore i dolje za jedno mjesto među onima koje se vide, jer se
+               samo ondje vidi i da se pomaknulo. */
+            const vidljive = viđene.map((x) => x.id);
+            const k = vidljive.indexOf(p.id);
+            const imeIzvodaca = p.vrsta === "izvodac";
             return (
               <>
                 <button
                   type="button"
+                  disabled={k <= 0}
                   onClick={() => {
-                    setPreimenujZa({ id: p.id, vrsta: p.vrsta, ime: p.naslov });
+                    pomakniPolicu(p.id, vidljive[k - 1], false);
                     setJelovnik(null);
                   }}
                 >
-                  {t("Preimenuj…")}
+                  {t("Pomakni gore")}
                 </button>
-                <hr />
                 <button
                   type="button"
-                  className="gopasno"
-                  disabled={p.vrsta !== "lista" && !p.pjesme.length}
+                  disabled={k < 0 || k >= vidljive.length - 1}
                   onClick={() => {
-                    zatraziBrisanjePolice(p);
+                    pomakniPolicu(p.id, vidljive[k + 1], true);
                     setJelovnik(null);
                   }}
                 >
-                  {p.vrsta === "lista" ? t("Obriši popis…") : t("Isprazni…")}
+                  {t("Pomakni dolje")}
                 </button>
+                {poredakPolica.length ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPoredakPolica([]);
+                      setJelovnik(null);
+                    }}
+                  >
+                    {t("Vrati početni redoslijed")}
+                  </button>
+                ) : null}
+                {imeIzvodaca ? null : (
+                  <>
+                    <hr />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreimenujZa({ id: p.id, vrsta: p.vrsta, ime: p.naslov });
+                        setJelovnik(null);
+                      }}
+                    >
+                      {t("Preimenuj…")}
+                    </button>
+                    <hr />
+                    <button
+                      type="button"
+                      className="gopasno"
+                      disabled={p.vrsta !== "lista" && !p.pjesme.length}
+                      onClick={() => {
+                        zatraziBrisanjePolice(p);
+                        setJelovnik(null);
+                      }}
+                    >
+                      {p.vrsta === "lista" ? t("Obriši popis…") : t("Isprazni…")}
+                    </button>
+                  </>
+                )}
               </>
             );
           })()}
@@ -2183,7 +2497,8 @@ export default function Glazba() {
               key={l.id}
               type="button"
               onClick={() => {
-                uPopis(l.id, jelovnik.id);
+                if (l.pjesme.includes(jelovnik.id)) setVecUPopisu({ lista: l.id, pjesma: jelovnik.id });
+                else uPopis(l.id, jelovnik.id);
                 setJelovnik(null);
               }}
             >
@@ -2205,7 +2520,7 @@ export default function Glazba() {
               <button
                 type="button"
                 onClick={() => {
-                  izPopisa(otvoreno.id, jelovnik.id);
+                  izPopisa(otvoreno.id, jelovnik.id, jelovnik.mjesto);
                   setJelovnik(null);
                 }}
               >
@@ -2252,6 +2567,47 @@ export default function Glazba() {
           ) : null}
         </div>
       ) : null}
+
+      {vecUPopisu
+        ? (() => {
+            const l = liste.find((x) => x.id === vecUPopisu.lista);
+            const p = poId.get(vecUPopisu.pjesma);
+            if (!l) return null;
+            return (
+              <div className="gokvir" onClick={() => setVecUPopisu(null)}>
+                <div
+                  className="gkutija"
+                  role="alertdialog"
+                  aria-labelledby="gvecnaslov"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h2 id="gvecnaslov">{t("Već je u popisu")}</h2>
+                  <p className="uz">
+                    {jezik === "en"
+                      ? (p ? "“" + p.naslov + "” is" : "This song is") + " already in “" + l.naslov + "”."
+                      : (p ? "„" + p.naslov + "” već stoji" : "Ta pjesma već stoji") + " u popisu „" + l.naslov + "”."}
+                  </p>
+                  <div className="gdno">
+                    <button type="button" className="blijedo" onClick={() => setVecUPopisu(null)}>
+                      {t("Ne dodaj")}
+                    </button>
+                    <button
+                      type="button"
+                      className="glavna"
+                      autoFocus
+                      onClick={() => {
+                        uPopis(vecUPopisu.lista, vecUPopisu.pjesma);
+                        setVecUPopisu(null);
+                      }}
+                    >
+                      {t("Ipak dodaj")}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
+        : null}
 
       {preimenujZa ? (
         <div className="gokvir" onClick={() => setPreimenujZa(null)}>

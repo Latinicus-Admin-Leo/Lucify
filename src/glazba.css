@@ -203,21 +203,23 @@
 }
 
 /* Znak i ime. Ime nestaje na uskom zaslonu, a znak ostaje: on je ono po čemu
-   se aplikacija prepoznaje, a traka je ondje pretijesna za oboje. */
-.gznak {
+   se aplikacija prepoznaje, a traka je ondje pretijesna za oboje.
+   Samo u gornjoj traci: isti naziv nosi i trokut u retku pjesme, koji je
+   odavde dobivao `padding-right` i stajao pomaknut ulijevo od broja. */
+.gvrh .gznak {
   display: flex;
   align-items: center;
   gap: 9px;
   padding-right: 4px;
   flex: none;
 }
-.gznak b {
+.gvrh .gznak b {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 @media (max-width: 600px) {
-  .gznak b {
+  .gvrh .gznak b {
     display: none;
   }
 }
@@ -285,15 +287,67 @@
 
 /* ---------- tri stupca ---------- */
 
+/* Širine bočnih stupaca stoje u varijablama, jer ih čovjek vuče mišem. Ni
+   jedan ne smije preko trećine prozora, pa prozor koji se suzio nakon
+   povlačenja ne ostane s glavnim stupcem stisnutim u ništa. */
 .gsadrzaj {
+  --lijevo: 292px;
+  --desno: 328px;
+  --lijevi-stupac: min(var(--lijevo), 34vw);
+  --desni-stupac: min(var(--desno), 34vw);
+  position: relative;
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-columns: var(--lijevi-stupac) minmax(0, 1fr);
   gap: 8px;
   padding: 4px 8px 8px;
   min-height: 0;
 }
 .gsadrzaj.spanelom {
-  grid-template-columns: 292px minmax(0, 1fr) 328px;
+  grid-template-columns: var(--lijevi-stupac) minmax(0, 1fr) var(--desni-stupac);
+}
+
+/* Rub koji se vuče. Širok je koliko i razmak među stupcima, a crta se vidi tek
+   pod mišem, kao u glazbenim programima. */
+.grub {
+  position: absolute;
+  top: 4px;
+  bottom: 8px;
+  width: 8px;
+  z-index: 5;
+  cursor: col-resize;
+  touch-action: none;
+}
+.grub.lijevi {
+  left: calc(8px + var(--lijevi-stupac));
+}
+.grub.desni {
+  right: calc(8px + var(--desni-stupac));
+}
+.grub::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.grub:hover::after,
+.grub:focus-visible::after,
+.gvucerub .grub::after {
+  background: rgba(255, 255, 255, 0.28);
+}
+.grub:focus-visible {
+  outline: none;
+}
+/* Dok se rub vuče, pokazivač ostaje strelica za širinu i nad stupcima, a tekst
+   se ne označava. */
+.gvucerub,
+.gvucerub * {
+  cursor: col-resize !important;
+  user-select: none;
 }
 
 .gzbirka,
@@ -333,6 +387,9 @@
 .gzglava .novi:hover {
   color: var(--tekst);
   background: var(--ploca-vis);
+}
+.gzglava .gprosiri {
+  display: none;
 }
 .gfiltar {
   display: flex;
@@ -418,6 +475,63 @@
   display: flex;
   align-self: center;
   margin-right: 6px;
+}
+/* Polica koja se povlači blijedi, a crta pokazuje kamo će pasti. */
+.gstavka.vuce {
+  opacity: 0.45;
+}
+.gstavka.nad-ispred {
+  box-shadow: inset 0 2px 0 var(--zeleno);
+}
+.gstavka.nad-iza {
+  box-shadow: inset 0 -2px 0 var(--zeleno);
+}
+
+/* Uski stupac: samo omoti, a ime je u oblačiću. Vrijedi samo dok zbirka stoji
+   u svom stupcu; na užem zaslonu ona je ladica i ondje je uvijek puna. */
+@media (min-width: 1001px) {
+  .gsadrzaj.uska .gzglava {
+    justify-content: center;
+    padding: 10px 0 8px;
+  }
+  .gsadrzaj.uska .gzglava > :not(.gprosiri) {
+    display: none;
+  }
+  .gsadrzaj.uska .gzglava .gprosiri {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: var(--blijedo);
+  }
+  .gsadrzaj.uska .gzglava .gprosiri:hover {
+    color: var(--tekst);
+    background: var(--ploca-vis);
+  }
+  .gsadrzaj.uska .gfiltar,
+  .gsadrzaj.uska .gzpretraga {
+    display: none;
+  }
+  .gsadrzaj.uska .gpopis {
+    padding: 0 4px;
+  }
+  .gsadrzaj.uska .gstavka {
+    grid-template-columns: 48px;
+    justify-content: center;
+    padding: 6px 0;
+  }
+  .gsadrzaj.uska .gstavka > span {
+    display: none;
+  }
+  .gsadrzaj.uska .gprazno {
+    display: none;
+  }
+  /* Stupci koji sviraju ovdje nemaju mjesta, pa je popis s kojega svira
+     uokviren zeleno. */
+  .gsadrzaj.uska .gstavka.svira .gomot {
+    box-shadow: 0 0 0 2px var(--zeleno);
+  }
 }
 .gstavka span {
   display: block;
@@ -703,10 +817,13 @@
    Trokut se pokazuje **samo** dok je miš nad retkom. Pjesma koja svira ne drži
    ga zauvijek: nju se prepoznaje po zelenom naslovu i zelenom broju, kao i
    drugdje. Prije je ondje stajala pauza, pa je redak koji svira izgledao kao
-   da je zapeo u dodirnutom stanju. */
+   da je zapeo u dodirnutom stanju.
+
+   Oboje stoji na sredini stupca, a ne uz desni rub: brojevi imaju jednu, dvije
+   ili tri znamenke, pa bi trokut uz desni rub bio pod svakim od njih drukčije. */
 .gredak .gbroj {
   display: grid;
-  justify-items: end;
+  justify-items: center;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
 }
@@ -1317,7 +1434,11 @@
 
 @media (max-width: 1279px) {
   .gsadrzaj.spanelom {
-    grid-template-columns: 292px minmax(0, 1fr);
+    grid-template-columns: var(--lijevi-stupac) minmax(0, 1fr);
+  }
+  /* Ploča ovdje lebdi nad popisom, pa njezin rub nema što razmicati. */
+  .grub.desni {
+    display: none;
   }
   .gsadrzaj.spanelom .gpanel {
     position: fixed;
@@ -1334,6 +1455,9 @@
   .gsadrzaj,
   .gsadrzaj.spanelom {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .grub {
+    display: none;
   }
   .gzbirka {
     position: fixed;

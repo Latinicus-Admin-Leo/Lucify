@@ -1,5 +1,6 @@
 /*
- * Srca, vlastiti popisi, premještene pjesme i vlastita imena polica, u datoteci uz zbirku.
+ * Srca, vlastiti popisi, premještene pjesme, vlastita imena polica i njihov
+ * redoslijed, u datoteci uz zbirku.
  *
  * Dosad su stajali samo u `localStorage` stranice, a to se u namjenskoj
  * aplikaciji pokazalo krhkim: Chromium svoju bazu zna obrisati i složiti
@@ -29,7 +30,7 @@ const NAJVISE = 4 * 1024 * 1024;
  * Stanje s diska, ili `null` kad ga još nema ili se ne da pročitati.
  *
  * @param {string} korijen mapa u kojoj stoji `Glazba/Zvuk`
- * @returns {{ srca?: string[], liste?: { id: string, naslov: string, pjesme: string[] }[], jezici?: Record<string, string>, nazivi?: Record<string, string> } | null}
+ * @returns {{ srca?: string[], liste?: { id: string, naslov: string, pjesme: string[] }[], jezici?: Record<string, string>, nazivi?: Record<string, string>, poredak?: string[] } | null}
  */
 export function procitajStanje(korijen) {
   const put = join(korijen, IME);
@@ -48,7 +49,7 @@ export function procitajStanje(korijen) {
  */
 function ocisti(s) {
   if (!s || typeof s !== "object") return null;
-  /** @type {{ srca?: string[], liste?: { id: string, naslov: string, pjesme: string[] }[], jezici?: Record<string, string>, nazivi?: Record<string, string> }} */
+  /** @type {{ srca?: string[], liste?: { id: string, naslov: string, pjesme: string[] }[], jezici?: Record<string, string>, nazivi?: Record<string, string>, poredak?: string[] }} */
   const van = {};
   if (Array.isArray(s.srca)) van.srca = s.srca.filter((/** @type {any} */ x) => typeof x === "string");
   if (Array.isArray(s.liste)) {
@@ -63,6 +64,7 @@ function ocisti(s) {
         pjesme: l.pjesme.filter((/** @type {any} */ p) => typeof p === "string"),
       }));
   }
+  if (Array.isArray(s.poredak)) van.poredak = s.poredak.filter((/** @type {any} */ x) => typeof x === "string");
   for (const kljuc of /** @type {const} */ (["jezici", "nazivi"])) {
     const o = s[kljuc];
     if (o && typeof o === "object" && !Array.isArray(o)) {

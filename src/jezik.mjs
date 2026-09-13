@@ -69,6 +69,15 @@ const EN = {
   "Premjesti u Hrvatske pjesme": "Move to Croatian songs",
   "Premjesti u Sve ostale pjesme": "Move to All other songs",
   "Iz mape": "From folder",
+  "Već je u popisu": "Already added",
+  "Ne dodaj": "Don't add",
+  "Ipak dodaj": "Add anyway",
+  "Pomakni gore": "Move up",
+  "Pomakni dolje": "Move down",
+  "Vrati početni redoslijed": "Restore the original order",
+  "Raširi zbirku": "Expand the collection",
+  "Širina zbirke": "Collection width",
+  "Širina ploče sa strane": "Side panel width",
 
   /* ---------- police: ime, brisanje, pražnjenje ---------- */
   "Preimenuj…": "Rename…",
