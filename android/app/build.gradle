@@ -17,7 +17,9 @@ def (glavna, sporedna, zakrpa) = paket.version.tokenize('.').collect { it.replac
 def potpis = new Properties()
 def potpisDatoteka = rootProject.file('keystore.properties')
 if (potpisDatoteka.exists()) potpisDatoteka.withInputStream { potpis.load(it) }
-def kljuc = { String ime, String varijabla -> potpis.getProperty(ime) ?: System.getenv(varijabla) }
+/* `trim()` jer tajna zalijepljena iz međuspremnika Windowsa zna na kraju nositi
+   prijelom reda, a lozinka s njim više nije ista lozinka. */
+def kljuc = { String ime, String varijabla -> (potpis.getProperty(ime) ?: System.getenv(varijabla))?.trim() }
 
 android {
     namespace = "hr.lucify.svirac"

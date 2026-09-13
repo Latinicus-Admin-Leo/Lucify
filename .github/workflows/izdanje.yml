@@ -137,20 +137,50 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
 
+      # Greške idu kao `::error::`, a ne samo u ispis: ispis posla vidi samo
+      # prijavljen korisnik, a bilješke uz posao vidi svatko. Ispisuju se imena
+      # i duljine, nikad vrijednosti.
+      #
+      # Tajne se prije upotrebe čiste od razmaka i prijeloma reda. Vrijednost
+      # zalijepljena iz međuspremnika Windowsa zna na kraju nositi `\r\n`, a
+      # `base64 -d` na `\r` pada, dok lozinka s njim više nije ista lozinka.
       - name: Ključ za potpis
         env:
           KLJUC: ${{ secrets.LUCIFY_KEYSTORE_BASE64 }}
+          LOZINKA: ${{ secrets.LUCIFY_KEYSTORE_LOZINKA }}
+          IME: ${{ secrets.LUCIFY_KLJUC }}
+          LOZINKA_IMENA: ${{ secrets.LUCIFY_KLJUC_LOZINKA }}
         run: |
+          cisto() { printf '%s' "$1" | tr -d '\r\n\t '; }
+          KLJUC=$(cisto "$KLJUC"); LOZINKA=$(cisto "$LOZINKA"); IME=$(cisto "$IME"); LOZINKA_IMENA=$(cisto "$LOZINKA_IMENA")
           if [ -z "$KLJUC" ]; then
             if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
-              echo "Nema tajne LUCIFY_KEYSTORE_BASE64, a nepotpisan APK ne ide u izdanje."
+              echo "::error::Nema tajne LUCIFY_KEYSTORE_BASE64, a nepotpisan APK ne ide u izdanje."
               exit 1
             fi
             echo "Nema ključa, pa se slaže nepotpisan APK, samo za provjeru."
             exit 0
           fi
-          echo "$KLJUC" | base64 -d > "$RUNNER_TEMP/lucify.jks"
+          fali=""
+          [ -z "$LOZINKA" ] && fali="$fali LUCIFY_KEYSTORE_LOZINKA"
+          [ -z "$IME" ] && fali="$fali LUCIFY_KLJUC"
+          [ -z "$LOZINKA_IMENA" ] && fali="$fali LUCIFY_KLJUC_LOZINKA"
+          if [ -n "$fali" ]; then
+            echo "::error::Nedostaju tajne:$fali"
+            exit 1
+          fi
+          if ! printf '%s' "$KLJUC" | base64 -d > "$RUNNER_TEMP/lucify.jks" 2>/dev/null; then
+            echo "::error::LUCIFY_KEYSTORE_BASE64 nije valjan base64 (${#KLJUC} znakova)."
+            exit 1
+          fi
+          echo "::add-mask::$LOZINKA"
+          echo "::add-mask::$LOZINKA_IMENA"
+          if ! keytool -list -keystore "$RUNNER_TEMP/lucify.jks" -storepass "$LOZINKA" -alias "$IME" > /dev/null 2>&1; then
+            echo "::error::Ključ se ne da otvoriti: lozinka (${#LOZINKA} znakova) ili ime (${#IME} znakova) ne odgovaraju. Ključ ima $(stat -c %s "$RUNNER_TEMP/lucify.jks") bajtova."
+            exit 1
+          fi
           echo "LUCIFY_KEYSTORE=$RUNNER_TEMP/lucify.jks" >> "$GITHUB_ENV"
+          echo "Ključ je na mjestu i otvara se."
 
       - name: Gradnja
         run: npm run apk
