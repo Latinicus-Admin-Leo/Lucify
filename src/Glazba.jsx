@@ -39,7 +39,7 @@ import {
 import * as svirac from "./glazba-svirac.mjs";
 import { KORIJEN, mmss, odbroj } from "./glazba-svirac.mjs";
 import { ANDROID, NA_UREDAJU, omotAdresa, ukloniPjesmu, zbirkaUredaja } from "./glazba-izvor.mjs";
-import { spojiListe, spojiStanje } from "./glazba-liste.mjs";
+import { spojiListe, spojiStanje, stoOdlazi } from "./glazba-liste.mjs";
 import { odrediJezike } from "./glazba-mape.mjs";
 import { adresaSnimke } from "./glazba-veze.mjs";
 import Znak from "./Znak.jsx";
@@ -127,11 +127,21 @@ const SIJANI_POPIS = "lista-mapa-";
 /* Pjesme koje je čovjek premjestio iz jedne glavne mape u drugu. Pamte se po
    uređaju, kao i srca, a pobjeđuju ono što piše u popisu. */
 const KLJUC_JEZICI = "lucijanka.glazba.jezici";
+/* Vlastita imena triju stalnih polica (srca i dviju glavnih mapa), kad ih je
+   čovjek preimenovao. Vlastiti popisi ime nose sami. */
+const KLJUC_NAZIVI = "lucijanka.glazba.nazivi";
 
 /* Dvije glavne mape zbirke. Treća, „Sve pjesme”, ne stoji u zbirci nego samo
    iza gornje tražilice, jer se traži po svemu. */
 const HRVATSKE = "hrvatske";
 const OSTALE = "ostale";
+
+/* Slaganje glagola s brojem: „1 pjesma ostaje”, „3 pjesme ostaju”, „5 pjesama
+   ostaje”. Imenicu slaže `pjesama()`, a ovo samo ono oko nje. */
+/** @param {number} n */
+const jednina = (n) => n % 10 === 1 && n % 100 !== 11;
+/** @param {number} n */
+const malo = (n) => n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14);
 
 /** @param {string} k @param {any} zadano */
 function ucitaj(k, zadano) {
@@ -468,6 +478,20 @@ export default function Glazba() {
   const [jezici, setJezici] = useState(
     /** @type {() => Record<string, string>} */ (() => ucitaj(KLJUC_JEZICI, {})),
   );
+  const [nazivi, setNazivi] = useState(
+    /** @type {() => Record<string, string>} */ (() => ucitaj(KLJUC_NAZIVI, {})),
+  );
+  /* Polica koja se preimenuje, briše ili prazni. `sPjesmama` je kvačica u
+     okviru za brisanje vlastitoga popisa. */
+  const [preimenujZa, setPreimenujZa] = useState(
+    /** @type {{ id: string, vrsta: string, ime: string } | null} */ (null),
+  );
+  const [brisiPolicu, setBrisiPolicu] = useState(
+    /** @type {{ id: string, vrsta: string, naslov: string, odlaze: string[], ostaju: string[] } | null} */ (null),
+  );
+  const [sPjesmama, setSPjesmama] = useState(false);
+  const [brisemPolicu, setBrisemPolicu] = useState(/** @type {{ gotovo: number, ukupno: number } | null} */ (null));
+  const [greskaPolice, setGreskaPolice] = useState("");
 
   const [otvoreno, setOtvoreno] = useState({ vrsta: "mapa", id: HRVATSKE });
   /* Polica koja je bila otvorena prije gornje tražilice. Traži se po cijeloj
@@ -587,6 +611,7 @@ export default function Glazba() {
   useEffect(() => spremi(KLJUC_SRCA, srca), [srca]);
   useEffect(() => spremi(KLJUC_LISTE, liste), [liste]);
   useEffect(() => spremi(KLJUC_JEZICI, jezici), [jezici]);
+  useEffect(() => spremi(KLJUC_NAZIVI, nazivi), [nazivi]);
 
   /* Gdje iza Lucifyja stoji poslužitelj, srca, popisi i premještene pjesme
      stoje i u datoteci uz zbirku (`scripts/stanje.mjs`), jer `localStorage`
@@ -606,10 +631,12 @@ export default function Glazba() {
           srca: ucitaj(KLJUC_SRCA, []),
           liste: ucitaj(KLJUC_LISTE, []),
           jezici: ucitaj(KLJUC_JEZICI, {}),
+          nazivi: ucitaj(KLJUC_NAZIVI, {}),
         });
         setSrca(s.srca);
         setListe(s.liste.filter((l) => !String(l && l.id).startsWith(SIJANI_POPIS)));
         setJezici(s.jezici);
+        setNazivi(s.nazivi);
         setDisk("spreman");
       })
       .catch(() => {
@@ -626,7 +653,7 @@ export default function Glazba() {
   const redZapisa = useRef(/** @type {Promise<unknown>} */ (Promise.resolve()));
   useEffect(() => {
     if (disk !== "spreman") return;
-    const tijelo = JSON.stringify({ srca, liste, jezici });
+    const tijelo = JSON.stringify({ srca, liste, jezici, nazivi });
     redZapisa.current = redZapisa.current
       .then(() =>
         fetch(KORIJEN + "stanje", {
@@ -639,7 +666,7 @@ export default function Glazba() {
       .catch(() => {
         /* Nije zapisano ovaj put; sljedeća promjena nosi cijelo stanje iznova. */
       });
-  }, [disk, srca, liste, jezici]);
+  }, [disk, srca, liste, jezici, nazivi]);
 
   /* Zeleni obrub fokusa pokazuje se samo onomu tko se kreće tipkom Tab. Prije
      se palio i mišem: klik na gumb ili klizač, pa razmaknica ili strelica, i
@@ -704,16 +731,16 @@ export default function Glazba() {
   const police = useMemo(() => {
     /** @type {{ id: string, naslov: string, vrsta: string, pjesme: string[] }[]} */
     const out = [
-      { id: "srca", naslov: t("Označeno srcem"), vrsta: "srca", pjesme: srca },
+      { id: "srca", naslov: nazivi.srca || t("Označeno srcem"), vrsta: "srca", pjesme: srca },
       {
         id: HRVATSKE,
-        naslov: t("Hrvatske pjesme"),
+        naslov: nazivi[HRVATSKE] || t("Hrvatske pjesme"),
         vrsta: "mapa",
         pjesme: sve.filter((p) => glavnaMapa(p) === HRVATSKE).map((p) => p.id),
       },
       {
         id: OSTALE,
-        naslov: t("Sve ostale pjesme"),
+        naslov: nazivi[OSTALE] || t("Sve ostale pjesme"),
         vrsta: "mapa",
         pjesme: sve.filter((p) => glavnaMapa(p) === OSTALE).map((p) => p.id),
       },
@@ -722,7 +749,7 @@ export default function Glazba() {
     for (const l of liste) out.push({ ...l, vrsta: "lista" });
     for (const p of (zbirka && zbirka.police) || []) out.push({ ...p, vrsta: "izvodac" });
     return out;
-  }, [srca, sve, liste, zbirka, t, glavnaMapa]);
+  }, [srca, sve, liste, zbirka, t, glavnaMapa, nazivi]);
 
   const viđene = useMemo(() => {
     const n = fold(traziZbirku.trim());
@@ -916,7 +943,10 @@ export default function Glazba() {
       if (e.key === "Escape") {
         if (zaUkloniti) {
           if (!uklanjam) setZaUkloniti(null);
-        } else if (noviPopisZa !== null) setNoviPopisZa(null);
+        } else if (brisiPolicu) {
+          if (!brisemPolicu) setBrisiPolicu(null);
+        } else if (preimenujZa) setPreimenujZa(null);
+        else if (noviPopisZa !== null) setNoviPopisZa(null);
         else if (jelovnik) setJelovnik(null);
         else if (mjeracOtvoren) setMjeracOtvoren(null);
         else if (zbirkaOtvorena) setZbirkaOtvorena(false);
@@ -934,7 +964,7 @@ export default function Glazba() {
     };
     document.addEventListener("keydown", naTipku);
     return () => document.removeEventListener("keydown", naTipku);
-  }, [prekidac, jelovnik, mjeracOtvoren, zbirkaOtvorena, noviPopisZa, zaUkloniti, uklanjam]);
+  }, [prekidac, jelovnik, mjeracOtvoren, zbirkaOtvorena, noviPopisZa, zaUkloniti, uklanjam, brisiPolicu, brisemPolicu, preimenujZa]);
 
   useEffect(() => {
     if (!jelovnik) return;
@@ -1089,6 +1119,129 @@ export default function Glazba() {
     setUklanjam(false);
     setZaUkloniti(null);
   }, [zaUkloniti, uklanjam, ucitajPopis, t]);
+
+  /* ---------- police: preimenovanje, brisanje, pražnjenje ---------- */
+
+  /**
+   * Izbornik police, desnim klikom (na mobitelu dugim dodirom). Stoji u istom
+   * stanju kao izbornik pjesme, pa ga zatvaraju isti klik i isti Escape.
+   * @param {any} e @param {{ id: string, vrsta: string }} p
+   */
+  const otvoriJelovnikPolice = useCallback((e, p) => {
+    if (p.vrsta !== "lista" && p.vrsta !== "mapa" && p.vrsta !== "srca") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const gore = window.innerHeight - e.clientY < 140;
+    setJelovnik({
+      id: "polica:" + p.id,
+      polica: { id: p.id, vrsta: p.vrsta },
+      x: Math.min(e.clientX, window.innerWidth - 240),
+      y: gore ? window.innerHeight - e.clientY : e.clientY,
+      gore,
+    });
+  }, []);
+
+  /** Izvorno ime stalne police, ono koje vrijedi kad vlastitoga nema. @param {string} id */
+  const izvornoIme = useCallback(
+    (id) => (id === "srca" ? t("Označeno srcem") : id === HRVATSKE ? t("Hrvatske pjesme") : t("Sve ostale pjesme")),
+    [t],
+  );
+
+  const preimenuj = useCallback(() => {
+    const r = preimenujZa;
+    if (!r) return;
+    const ime = r.ime.trim();
+    if (r.vrsta === "lista") {
+      if (!ime) return;
+      setListe((l) => l.map((x) => (x.id === r.id ? { ...x, naslov: ime } : x)));
+    } else {
+      /* Prazno ili izvorno ime briše vlastito, pa polica opet prati jezik. */
+      setNazivi((n) => {
+        const novi = { ...n };
+        if (ime && ime !== izvornoIme(r.id)) novi[r.id] = ime;
+        else delete novi[r.id];
+        return novi;
+      });
+    }
+    setPreimenujZa(null);
+  }, [preimenujZa, izvornoIme]);
+
+  /** @param {{ id: string, vrsta: string, naslov: string, pjesme: string[] }} p */
+  const zatraziBrisanjePolice = useCallback(
+    (p) => {
+      const { odlaze, ostaju } = stoOdlazi(p, liste, srca);
+      setSPjesmama(false);
+      setGreskaPolice("");
+      setBrisiPolicu({
+        id: p.id,
+        vrsta: p.vrsta,
+        naslov: p.naslov,
+        /* Samo ono što u zbirci doista stoji; popis zna pamtiti i uklonjeno. */
+        odlaze: odlaze.filter((id) => poId.has(id)),
+        ostaju,
+      });
+    },
+    [liste, srca, poId],
+  );
+
+  /**
+   * Brisanje vlastitoga popisa, ili pražnjenje srca i glavnih mapa.
+   *
+   * Vlastiti popis nestaje, a pjesme s njim samo kad je kvačica označena.
+   * Glavna mapa ostaje, a iz zbirke odlazi sve u njoj što nije u nekom popisu
+   * ili u srcima. Srca se samo isprazne: pjesme su i dalje u glavnim mapama.
+   * Pjesme odlaze jedna po jedna, istim putem kao „Ukloni iz zbirke”.
+   */
+  const obrisiPolicu = useCallback(async () => {
+    const b = brisiPolicu;
+    if (!b || brisemPolicu) return;
+    const zaBrisati = b.vrsta === "srca" || (b.vrsta === "lista" && !sPjesmama) ? [] : b.odlaze;
+    setGreskaPolice("");
+    setBrisemPolicu({ gotovo: 0, ukupno: zaBrisati.length });
+
+    /** @type {Set<string>} */
+    const obrisane = new Set();
+    let greska = "";
+    for (const id of zaBrisati) {
+      svirac.izbaci(id);
+      try {
+        await ukloniPjesmu(id);
+        obrisane.add(id);
+      } catch (e) {
+        greska = e && /** @type {any} */ (e).message ? String(/** @type {any} */ (e).message) : t("Pjesma se nije dala ukloniti.");
+        break;
+      }
+      setBrisemPolicu({ gotovo: obrisane.size, ukupno: zaBrisati.length });
+    }
+
+    const bez = (/** @type {string[]} */ niz) => niz.filter((x) => !obrisane.has(x));
+    setSrca((s) => (b.vrsta === "srca" ? [] : bez(s)));
+    /* Popis se ne briše ako je koja pjesma zapela: ostaje, s onim što nije otišlo. */
+    setListe((l) =>
+      l
+        .filter((x) => greska || !(b.vrsta === "lista" && x.id === b.id))
+        .map((x) => ({ ...x, pjesme: bez(x.pjesme) })),
+    );
+    if (obrisane.size) {
+      setJezici((j) => {
+        const novi = { ...j };
+        for (const id of obrisane) delete novi[id];
+        return novi;
+      });
+      await ucitajPopis();
+    }
+    setBrisemPolicu(null);
+
+    if (greska) {
+      setGreskaPolice(greska);
+      setBrisiPolicu((x) => x && { ...x, odlaze: bez(x.odlaze) });
+      return;
+    }
+    if (b.vrsta === "lista" && otvoreno.vrsta === "lista" && otvoreno.id === b.id) {
+      setOtvoreno({ vrsta: "mapa", id: HRVATSKE });
+    }
+    setBrisiPolicu(null);
+  }, [brisiPolicu, brisemPolicu, sPjesmama, ucitajPopis, t, otvoreno]);
 
   /* ---------- prikaz ---------- */
 
@@ -1388,6 +1541,7 @@ export default function Glazba() {
                   type="button"
                   className={"gstavka" + (ovdjeSvira ? " svira" : "")}
                   aria-current={p.id === polica.id ? "true" : undefined}
+                  onContextMenu={(e) => otvoriJelovnikPolice(e, p)}
                   onClick={() => {
                     setOtvoreno({ vrsta: p.vrsta, id: p.id });
                     setTrazi("");
@@ -1963,7 +2117,47 @@ export default function Glazba() {
       {okvirUvoz}
       {okvirVeze}
 
-      {jelovnik ? (
+      {jelovnik && jelovnik.polica ? (
+        <div
+          className="gjelovnik"
+          style={{
+            left: jelovnik.x,
+            top: jelovnik.gore ? "auto" : jelovnik.y,
+            bottom: jelovnik.gore ? jelovnik.y : "auto",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(() => {
+            const p = police.find((x) => x.id === jelovnik.polica.id);
+            if (!p) return null;
+            return (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreimenujZa({ id: p.id, vrsta: p.vrsta, ime: p.naslov });
+                    setJelovnik(null);
+                  }}
+                >
+                  {t("Preimenuj…")}
+                </button>
+                <hr />
+                <button
+                  type="button"
+                  className="gopasno"
+                  disabled={p.vrsta !== "lista" && !p.pjesme.length}
+                  onClick={() => {
+                    zatraziBrisanjePolice(p);
+                    setJelovnik(null);
+                  }}
+                >
+                  {p.vrsta === "lista" ? t("Obriši popis…") : t("Isprazni…")}
+                </button>
+              </>
+            );
+          })()}
+        </div>
+      ) : jelovnik ? (
         <div
           className="gjelovnik"
           style={{
@@ -2056,6 +2250,163 @@ export default function Glazba() {
               </button>
             </>
           ) : null}
+        </div>
+      ) : null}
+
+      {preimenujZa ? (
+        <div className="gokvir" onClick={() => setPreimenujZa(null)}>
+          <form
+            className="gkutija"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              preimenuj();
+            }}
+          >
+            <h2>{t("Preimenuj")}</h2>
+            <label htmlFor="gpreimenuj">{t("Kako se zove?")}</label>
+            <input
+              id="gpreimenuj"
+              value={preimenujZa.ime}
+              autoFocus
+              maxLength={60}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => setPreimenujZa({ ...preimenujZa, ime: e.target.value })}
+            />
+            {preimenujZa.vrsta !== "lista" ? (
+              <p className="uz">
+                {t("Prazno vraća izvorno ime:")} {izvornoIme(preimenujZa.id)}
+              </p>
+            ) : null}
+            <div className="gdno">
+              <button type="button" className="blijedo" onClick={() => setPreimenujZa(null)}>
+                {t("Odustani")}
+              </button>
+              <button
+                type="submit"
+                className="glavna"
+                disabled={preimenujZa.vrsta === "lista" && !preimenujZa.ime.trim()}
+              >
+                {t("Spremi")}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {brisiPolicu ? (
+        <div className="gokvir" onClick={() => (brisemPolicu ? null : setBrisiPolicu(null))}>
+          <div
+            className="gkutija gukloni"
+            role="alertdialog"
+            aria-labelledby="gbrisinaslov"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="gbrisinaslov">
+              {brisiPolicu.vrsta === "lista" ? t("Obrisati popis?") : t("Isprazniti policu?")}
+            </h2>
+            <p>
+              <b>{brisiPolicu.naslov}</b>
+            </p>
+            {brisiPolicu.vrsta === "lista" ? (
+              <>
+                <p className="uz">
+                  {jezik === "en"
+                    ? "The playlist goes. Its songs stay in the collection unless you tick the box below."
+                    : "Popis nestaje. Pjesme iz njega ostaju u zbirci, osim ako ne označiš ispod."}
+                </p>
+                {brisiPolicu.odlaze.length ? (
+                  <label className="gkvacica">
+                    <input
+                      type="checkbox"
+                      checked={sPjesmama}
+                      disabled={!!brisemPolicu}
+                      onChange={(e) => setSPjesmama(e.target.checked)}
+                    />
+                    <span>
+                      {jezik === "en"
+                        ? "Also delete the " + brisiPolicu.odlaze.length + " " + pjesama(brisiPolicu.odlaze.length, jezik) + " that are in no other playlist and not in favourites"
+                        : "Obriši i " + brisiPolicu.odlaze.length + " " +
+                          (jednina(brisiPolicu.odlaze.length)
+                            ? "pjesmu koja nije"
+                            : pjesama(brisiPolicu.odlaze.length, jezik) + " koje nisu") +
+                          " ni u jednom drugom popisu ni u srcima"}
+                    </span>
+                  </label>
+                ) : (
+                  <p className="uz">
+                    {jezik === "en"
+                      ? "Every song in it is also in another playlist or in favourites, so none would be deleted."
+                      : "Svaka pjesma iz njega je i u nekom drugom popisu ili u srcima, pa se ne bi obrisala nijedna."}
+                  </p>
+                )}
+                {sPjesmama && brisiPolicu.odlaze.length ? (
+                  <p className="uz guklonigreska">
+                    {NA_UREDAJU
+                      ? t("Snimke se brišu s ovog uređaja i ne dade ih se vratiti, osim ponovnim dodavanjem.")
+                      : t("Snimke se brišu s diska i ne dade ih se vratiti, osim ponovnim dodavanjem.")}
+                  </p>
+                ) : null}
+              </>
+            ) : brisiPolicu.vrsta === "srca" ? (
+              <p className="uz">
+                {jezik === "en"
+                  ? "All " + (brisiPolicu.odlaze.length + brisiPolicu.ostaju.length) + " favourites are removed. The songs stay in the collection."
+                  : "Miču se sva srca (" + (brisiPolicu.odlaze.length + brisiPolicu.ostaju.length) + "). Pjesme ostaju u zbirci."}
+              </p>
+            ) : (
+              <>
+                <p className="uz">
+                  {jezik === "en"
+                    ? brisiPolicu.odlaze.length + " " + pjesama(brisiPolicu.odlaze.length, jezik) + " will be deleted " + (NA_UREDAJU ? "from this device" : "from disk") + ". The shelf itself stays, empty."
+                    : (NA_UREDAJU ? "S ovog uređaja " : "S diska ") +
+                      (malo(brisiPolicu.odlaze.length) ? "se brišu " : "se briše ") +
+                      brisiPolicu.odlaze.length + " " + pjesama(brisiPolicu.odlaze.length, jezik) +
+                      ". Sama polica ostaje, prazna."}
+                </p>
+                {brisiPolicu.ostaju.length ? (
+                  <p className="uz">
+                    {jezik === "en"
+                      ? brisiPolicu.ostaju.length + " stay, because they are in your playlists or favourites."
+                      : (malo(brisiPolicu.ostaju.length) ? "Ostaju " : "Ostaje ") +
+                        brisiPolicu.ostaju.length + " " + pjesama(brisiPolicu.ostaju.length, jezik) +
+                        (jednina(brisiPolicu.ostaju.length) ? ", jer je" : ", jer su") +
+                        " u tvojim popisima ili u srcima."}
+                  </p>
+                ) : null}
+                {brisiPolicu.odlaze.length ? (
+                  <p className="uz guklonigreska">
+                    {t("Ne dade ih se vratiti, osim ponovnim dodavanjem.")}
+                  </p>
+                ) : null}
+              </>
+            )}
+            {greskaPolice ? <p className="guklonigreska">{greskaPolice}</p> : null}
+            <div className="gdno">
+              <button
+                type="button"
+                className="blijedo"
+                disabled={!!brisemPolicu}
+                onClick={() => setBrisiPolicu(null)}
+              >
+                {t("Odustani")}
+              </button>
+              <button
+                type="button"
+                className="glavna opasno"
+                disabled={!!brisemPolicu || (brisiPolicu.vrsta === "mapa" && !brisiPolicu.odlaze.length)}
+                onClick={obrisiPolicu}
+              >
+                {brisemPolicu
+                  ? brisemPolicu.ukupno
+                    ? t("Brišem") + " " + brisemPolicu.gotovo + "/" + brisemPolicu.ukupno + "…"
+                    : t("Brišem…")
+                  : brisiPolicu.vrsta === "lista"
+                    ? t("Obriši")
+                    : t("Isprazni")}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 

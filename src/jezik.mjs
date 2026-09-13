@@ -70,6 +70,25 @@ const EN = {
   "Premjesti u Sve ostale pjesme": "Move to All other songs",
   "Iz mape": "From folder",
 
+  /* ---------- police: ime, brisanje, pražnjenje ---------- */
+  "Preimenuj…": "Rename…",
+  Preimenuj: "Rename",
+  Spremi: "Save",
+  "Prazno vraća izvorno ime:": "Leave it empty for the original name:",
+  "Obriši popis…": "Delete playlist…",
+  "Isprazni…": "Empty…",
+  "Obrisati popis?": "Delete the playlist?",
+  "Isprazniti policu?": "Empty the shelf?",
+  Obriši: "Delete",
+  Isprazni: "Empty",
+  Brišem: "Deleting",
+  "Brišem…": "Deleting…",
+  "Snimke se brišu s diska i ne dade ih se vratiti, osim ponovnim dodavanjem.":
+    "The recordings are deleted from disk and cannot be brought back, except by adding them again.",
+  "Snimke se brišu s ovog uređaja i ne dade ih se vratiti, osim ponovnim dodavanjem.":
+    "The recordings are deleted from this device and cannot be brought back, except by adding them again.",
+  "Ne dade ih se vratiti, osim ponovnim dodavanjem.": "They cannot be brought back, except by adding them again.",
+
   /* ---------- uklanjanje iz zbirke ---------- */
   "Ukloni iz zbirke…": "Remove from collection…",
   "Ukloniti iz zbirke?": "Remove from the collection?",

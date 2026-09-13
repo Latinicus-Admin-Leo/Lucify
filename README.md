@@ -276,7 +276,8 @@ po adresi.
 | `src/glazba-izvor.mjs` | odakle snimka dolazi: poslužitelj ili sam uređaj |
 | `src/glazba-spremiste.mjs` | zbirka u IndexedDB, na objavljenom Lucifyju |
 | `src/glazba-zip.mjs` | čitanje arhive iz izvoza, bez prepisivanja bajtova |
-| `src/glazba-liste.mjs` | vlastiti popisi s računala, spojeni s onima na uređaju |
+| `src/glazba-liste.mjs` | spajanje popisa i stanja, i što odlazi kad se polica briše |
+| `scripts/stanje.mjs` | srca, popisi i imena polica u `.lucify-stanje.json`, uz zbirku |
 | `src/glazba.css` | sav izgled |
 | `src/Znak.jsx` | znak, ugrađen, za gornju traku |
 | `public/pisma/` | IBM Plex Mono, uz licenciju: pismo ne dolazi s mreže |
@@ -440,6 +441,33 @@ Pamte se **po adresi**, pa su ovdje (`localhost:5176`) odvojeni od onih u Lucija
 Adresa uključuje i luku, pa namjenska aplikacija sluša uvijek na istoj, `127.0.0.1:47831`.
 Do 1.0.6 luku je birao sustav, i svako je pokretanje bilo nova adresa, bez srca i popisa.
 Samo kad je ta luka zauzeta, uzme se bilo koja slobodna, pa se to pokretanje ne pamti.
+
+Ni stalna luka nije bila dosta: Chromium svoju bazu za `localStorage` zna obrisati i
+složiti iznova, i tako je nadogradnja na 1.0.8 odnijela sve popise. Zato srca, vlastiti
+popisi, premještene pjesme i vlastita imena polica ondje gdje iza Lucifyja stoji
+poslužitelj (`.exe` i `npm run dev`) stoje i u **`.lucify-stanje.json`**, uz zbirku
+(`scripts/stanje.mjs`, `GET`/`PUT /stanje`). Stranica pri otvaranju datoteku spoji s
+`localStorage`om i ništa ne baca: što ima datoteka vrijedi, a iza toga dođe ono što ima
+samo stranica. Svaka promjena ide odmah u oboje. Na mobitelu i na objavljenoj stranici
+poslužitelja nema, pa ondje ostaje samo `localStorage`.
+
+## Police: ime, brisanje, pražnjenje
+
+Desni klik (na mobitelu dug dodir) na policu u zbirci otvara **Preimenuj…** i
+**Obriši popis…** za vlastite popise, odnosno **Isprazni…** za „Označeno srcem” i dvije
+glavne mape, koje ostaju i kad su prazne.
+
+- **Vlastiti popis** nestaje. Pjesme iz njega ostaju u zbirci, osim ako se u okviru
+  označi kvačica: tada iz zbirke odlaze i one koje nisu ni u jednom drugom popisu ni u
+  srcima.
+- **Glavna mapa** se prazni: iz zbirke odlazi sve u njoj što nije u nekom vlastitom
+  popisu ili u srcima. To ostaje, pa mapa ne mora pasti baš na nulu.
+- **Označeno srcem** samo izgubi srca; pjesme su i dalje u glavnim mapama.
+
+Glavne mape se u tome ne broje kao „drugi popis”, jer je svaka pjesma u jednoj od njih
+(`stoOdlazi` u `src/glazba-liste.mjs`). Pjesme odlaze istim putem kao „Ukloni iz
+zbirke”, jedna po jedna, i **ne vraćaju se** osim ponovnim dodavanjem. Prazno ime
+stalnoj polici vraća izvorno.
 
 ## Namjenska aplikacija
 

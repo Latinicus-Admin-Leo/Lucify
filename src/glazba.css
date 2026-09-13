@@ -988,6 +988,32 @@
   background: #ff5c5c;
   color: #000;
 }
+.gjelovnik button:disabled {
+  opacity: 0.45;
+  background: none;
+  cursor: default;
+}
+
+/* Kvačica „obriši i pjesme” u okviru za brisanje popisa. Opće pravilo za
+   `.gkutija input` razvuklo bi je u polje za upis, pa ga ovdje poništava. */
+.gkutija .gkvacica {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 14px 0 0;
+  font-size: 13.5px;
+  color: var(--tekst);
+  cursor: pointer;
+}
+.gkutija .gkvacica input {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin: 1px 0 0;
+  padding: 0;
+  accent-color: #ff5c5c;
+  cursor: pointer;
+}
 
 /* ---------- desna ploča ---------- */
 
