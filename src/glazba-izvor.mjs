@@ -105,6 +105,35 @@ export function omotAdresa(ime) {
   return NA_UREDAJU ? omoti.get(ime) || "" : KORIJEN + "glazba/" + ime;
 }
 
+/* ---------- uklanjanje ---------- */
+
+/**
+ * Pjesma van iz zbirke, skroz: snimka s diska ili iz uređaja, a ne samo iz
+ * pogleda. Gdje ima poslužitelja, briše on; gdje ga nema, briše se iz baze.
+ *
+ * @param {string} id
+ * @returns {Promise<void>} pukne s porukom koja se smije pokazati
+ */
+export async function ukloniPjesmu(id) {
+  if (NA_UREDAJU) {
+    const { ukloni } = await spremiste();
+    /* Omoti se ovdje ne zatvaraju: popis se poslije uklanjanja čita iznova, a
+       `pripremiOmote()` pritom zatvori sve stare adrese sama. */
+    await ukloni(id);
+    return;
+  }
+  let odgovor;
+  try {
+    odgovor = await fetch(KORIJEN + "preuzmi/ukloni?id=" + encodeURIComponent(id), { method: "POST" });
+  } catch {
+    throw new Error("Ne mogu doći do Lucifyjeva poslužitelja.");
+  }
+  if (!odgovor.ok) {
+    const tijelo = await odgovor.json().catch(() => null);
+    throw new Error((tijelo && tijelo.greska && tijelo.greska.poruka) || "Pjesma se nije dala ukloniti.");
+  }
+}
+
 /* ---------- popis ---------- */
 
 /**

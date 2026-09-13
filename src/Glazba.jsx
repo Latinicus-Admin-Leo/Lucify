@@ -1,9 +1,11 @@
 import {
   Suspense,
   lazy,
+  memo,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -36,7 +38,9 @@ import {
 } from "lucide-react";
 import * as svirac from "./glazba-svirac.mjs";
 import { KORIJEN, mmss, odbroj } from "./glazba-svirac.mjs";
-import { NA_UREDAJU, omotAdresa, zbirkaUredaja } from "./glazba-izvor.mjs";
+import { NA_UREDAJU, omotAdresa, ukloniPjesmu, zbirkaUredaja } from "./glazba-izvor.mjs";
+import { odrediJezike } from "./glazba-mape.mjs";
+import { adresaSnimke } from "./glazba-veze.mjs";
 import Znak from "./Znak.jsx";
 import { jezikStanje, pjesama, prevoditelj } from "./jezik.mjs";
 import "./glazba.css";
@@ -117,6 +121,14 @@ const KLJUC_LISTE = "lucijanka.glazba.liste";
    vratio sam od sebe pri sljedećem otvaranju, a i uređen bi se vratio na
    početno stanje. */
 const KLJUC_MAPE = "lucijanka.glazba.mape";
+/* Pjesme koje je čovjek premjestio iz jedne glavne mape u drugu. Pamte se po
+   uređaju, kao i srca, a pobjeđuju ono što piše u popisu. */
+const KLJUC_JEZICI = "lucijanka.glazba.jezici";
+
+/* Dvije glavne mape zbirke. Treća, „Sve pjesme”, ne stoji u zbirci nego samo
+   iza gornje tražilice, jer se traži po svemu. */
+const HRVATSKE = "hrvatske";
+const OSTALE = "ostale";
 
 /** @param {string} k @param {any} zadano */
 function ucitaj(k, zadano) {
@@ -249,9 +261,188 @@ function Klizac({ vrijednost, najvise, naPromjenu, oznaka, razred, korak }) {
       aria-label={oznaka}
       style={stil({ "--posto": posto + "%" })}
       onChange={(e) => naPromjenu(Number(e.target.value))}
+      /* Pušten klizač ne zadržava fokus. Da ga zadrži, strelice i razmaknica
+         poslije bi pomicale njega, a ne pjesmu, a preglednik bi mu na prvu
+         tipku nacrtao obrub. */
+      onPointerUp={(e) => e.currentTarget.blur()}
     />
   );
 }
+
+/* Tri sitna dijela koja otkucavaju. Svaki gleda puno stanje svirača za sebe, a
+   Lucify samo `svirac.glavno()`, pa četiri otkucaja u sekundi crtaju dva broja
+   i jednu traku, a ne cijeli popis. */
+
+/** Vrijeme u pjesmi i traka po kojoj se premotava. @param {{ t: (s: string) => string }} props */
+function Vrijeme({ t }) {
+  const { vrijeme, trajanje } = useSyncExternalStore(svirac.prati, svirac.stanje, svirac.stanje);
+  return (
+    <div className="gcrta">
+      <span>{mmss(vrijeme)}</span>
+      <Klizac
+        vrijednost={Math.min(vrijeme, trajanje)}
+        najvise={trajanje}
+        oznaka={t("Mjesto u pjesmi")}
+        naPromjenu={(v) => svirac.premotaj(v)}
+      />
+      <span>{mmss(trajanje)}</span>
+    </div>
+  );
+}
+
+/** Utišavanje i glasnoća. @param {{ t: (s: string) => string }} props */
+function Glasnoca({ t }) {
+  const { glasnoca, tiho } = useSyncExternalStore(svirac.prati, svirac.stanje, svirac.stanje);
+  return (
+    <div className="gdesno">
+      <button
+        type="button"
+        className="gikona"
+        aria-label={tiho ? t("Uključi zvuk") : t("Utišaj")}
+        onClick={() => svirac.prigusi()}
+      >
+        {tiho || glasnoca === 0 ? (
+          <VolumeX size={18} aria-hidden="true" />
+        ) : glasnoca < 0.5 ? (
+          <Volume1 size={18} aria-hidden="true" />
+        ) : (
+          <Volume2 size={18} aria-hidden="true" />
+        )}
+      </button>
+      <Klizac
+        razred="gglasnoca"
+        vrijednost={tiho ? 0 : glasnoca * 100}
+        najvise={100}
+        oznaka={t("Glasnoća")}
+        naPromjenu={(v) => svirac.postaviGlasnocu(v / 100)}
+      />
+    </div>
+  );
+}
+
+/** Koliko mjerač još daje, uz sat na alatkama. @param {{ t: (s: string) => string }} props */
+function MjeracOdbroj({ t }) {
+  const { mjerac } = useSyncExternalStore(svirac.prati, svirac.stanje, svirac.stanje);
+  if (!mjerac) return null;
+  return <span>{mjerac.kraj ? t("do kraja pjesme") : odbroj(mjerac.ostalo)}</span>;
+}
+
+/* Četiri stupca koja poskakuju dok nešto svira: u retku pjesme i uz popis u
+   zbirci s kojega svira. */
+function Stupci() {
+  return (
+    <span className="gsviraju" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+}
+
+/**
+ * Jedan redak popisa.
+ *
+ * Zaseban je i pamćen (`memo`) jer ih u zbirci ima pet stotina, a gotovo svaka
+ * promjena u Lucifyju — otvoren izbornik, srce na jednoj pjesmi, sljedeća
+ * pjesma — tiče se jednoga ili dvaju. Bez toga bi se svaki put crtali svi.
+ * Zato su i sve funkcije koje prima stalne, a o retku samom govore mu brojevi i
+ * zastavice, a ne cijelo stanje.
+ *
+ * @param {{ p: any, i: number, jeSada: boolean, tece: boolean, srcem: boolean,
+ *           otvoren: boolean, mreza: boolean, t: (s: string) => string,
+ *           naPusti: (i: number, jeSada: boolean) => void, naSrce: (id: string) => void,
+ *           naJelovnik: (e: any, id: string) => void }} props
+ */
+function RedakPjesme({ p, i, jeSada, tece, srcem, otvoren, mreza, t, naPusti, naSrce, naJelovnik }) {
+  return (
+    <div
+      data-pjesma={p.id}
+      className={"gredak pjesma" + (jeSada ? " sada" : "") + (tece ? " gtece" : "")}
+      onDoubleClick={() => naPusti(i, false)}
+      /* Na dodir dvostrukoga klika nema, pa redak ondje pušta jednim dodirom,
+         kako to na telefonu i inače ide. Pitamo `hover: none`, a ne širinu
+         zaslona: dodir je ono što ovdje doista odlučuje. Dodir na tipku ili
+         poveznicu u retku ostaje njihov, da srce i izbornik rade svoje. */
+      onClick={(e) => {
+        if (!window.matchMedia("(hover: none)").matches) return;
+        if (/** @type {HTMLElement} */ (e.target).closest("button, a")) return;
+        naPusti(i, false);
+      }}
+    >
+      <button
+        type="button"
+        className="gbroj"
+        aria-label={t("Pusti ") + p.naslov}
+        onClick={() => naPusti(i, jeSada)}
+      >
+        <span className="gbrojka">{i + 1}</span>
+        {tece ? <Stupci /> : null}
+        <span className="gznak" aria-hidden="true">
+          {tece ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
+        </span>
+      </button>
+
+      <span className="naslov">
+        <Omot ime={p.naslov} slika={p.omot} />
+        <span>
+          <b>{p.naslov}</b>
+          <span>{p.izvodac}</span>
+        </span>
+      </span>
+
+      <span className="stupac">
+        {p.razdoblje ? (
+          p.razdoblje
+        ) : p.yt && mreza ? (
+          <a
+            className="gizvor"
+            href={"https://www.youtube.com/watch?v=" + p.yt}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            YouTube
+          </a>
+        ) : p.yt ? (
+          /* Bez mreže ostaje natpis, ali ne i poveznica: pjesma i dalje svira,
+             a klik bi vodio u prazan zaslon. */
+          <span className="gizvor nema">YouTube</span>
+        ) : p.mapa ? (
+          /* Pjesma iz mape s računala, kojoj snimka na YouTubeu nije nađena.
+             Prije je ovdje pisalo samo „Datoteka”, pa se nije znalo zašto. */
+          t("Iz mape") + " " + p.mapa
+        ) : (
+          t("Datoteka")
+        )}
+      </span>
+
+      <span className="dodano">{p.dodano}</span>
+
+      <span className="kraj">
+        <button
+          type="button"
+          className={"gsrce" + (srcem ? " puno" : "")}
+          aria-label={srcem ? t("Makni iz srca") : t("Označi srcem")}
+          aria-pressed={srcem}
+          onClick={() => naSrce(p.id)}
+        >
+          <Heart size={15} fill={srcem ? "currentColor" : "none"} />
+        </button>
+        {mmss(p.trajanje)}
+        <button
+          type="button"
+          className="gvise"
+          aria-label={t("Više o pjesmi")}
+          aria-expanded={otvoren ? "true" : "false"}
+          onClick={(e) => naJelovnik(e, p.id)}
+        >
+          <MoreHorizontal size={16} aria-hidden="true" />
+        </button>
+      </span>
+    </div>
+  );
+}
+const Redak = memo(RedakPjesme);
 
 export default function Glazba() {
   /* Jezik stoji izvan Reacta, kao i svirač: traže ga i ostali okviri, a mijenja
@@ -271,8 +462,21 @@ export default function Glazba() {
   const [sijaneMape, setSijaneMape] = useState(
     /** @type {() => string[]} */ (() => ucitaj(KLJUC_MAPE, [])),
   );
+  const [jezici, setJezici] = useState(
+    /** @type {() => Record<string, string>} */ (() => ucitaj(KLJUC_JEZICI, {})),
+  );
 
-  const [otvoreno, setOtvoreno] = useState({ vrsta: "sve", id: "sve" });
+  const [otvoreno, setOtvoreno] = useState({ vrsta: "mapa", id: HRVATSKE });
+  /* Polica koja je bila otvorena prije gornje tražilice. Traži se po cijeloj
+     zbirci, a kad se tražilica isprazni, vraća se ondje gdje se bilo. */
+  const prijeTrazenja = useRef(/** @type {{ vrsta: string, id: string } | null} */ (null));
+  const glavnoRef = useRef(/** @type {HTMLElement | null} */ (null));
+  /* Kad je čovjek zadnji put sam pomicao popis. Dok ga pomiče, sljedeća pjesma
+     ne smije ga odvući natrag na sebe. */
+  const rucnoPomaknuto = useRef(0);
+  const [zaUkloniti, setZaUkloniti] = useState(/** @type {any} */ (null));
+  const [uklanjam, setUklanjam] = useState(false);
+  const [greskaUklanjanja, setGreskaUklanjanja] = useState("");
   /* Ima li mreže. Zbirka je na uređaju i svira bez nje, ali poveznica na
      YouTube bez mreže vodi u prazan zaslon preglednika, pa je onda nema.
      Sluša se i poslije, a ne samo pri otvaranju: mreža ode i vrati se, a
@@ -294,8 +498,8 @@ export default function Glazba() {
      Lucifyja, jer glazba mora svirati i kad se Lucify zatvori, a React
      bi pri zatvaranju odnio i zvuk i red čekanja. Odavde se ono samo gleda i
      prebacuje, kao i mjerač vremena, koji inače ne bi imao tko otkucavati. */
-  const { red, na, sada, svira, vrijeme, trajanje, glasnoca, tiho, mijesaj, ponovi, mjerac } =
-    useSyncExternalStore(svirac.prati, svirac.stanje, svirac.stanje);
+  const { red, sada, svira, mijesaj, ponovi, imaMjerac, mjeracKraj, izvor } =
+    useSyncExternalStore(svirac.prati, svirac.glavno, svirac.glavno);
   /* Ovdje stoji i mjesto na kojem se izbornik otvara, jer je `fixed`. `gore`
      znači da visi s gornje strane gumba, pa mu se mjesto zadaje odozdo. */
   const [mjeracOtvoren, setMjeracOtvoren] = useState(
@@ -337,6 +541,9 @@ export default function Glazba() {
           )
       )
         .then((p) => {
+          /* Popis složen prije nego što su postojale dvije glavne mape nema
+             `jezik`, pa se pogodi ovdje, istim pravilom kao na poslužitelju. */
+          if (p && Array.isArray(p.pjesme)) odrediJezike(p.pjesme);
           setZbirka(p);
           /* Svirač dobiva isti popis, jer bez njega ne zna ni gdje je koja
              datoteka ni koja je sljedeća. Odatle se vraća i zadnja pjesma iz
@@ -355,6 +562,26 @@ export default function Glazba() {
   useEffect(() => spremi(KLJUC_SRCA, srca), [srca]);
   useEffect(() => spremi(KLJUC_LISTE, liste), [liste]);
   useEffect(() => spremi(KLJUC_MAPE, sijaneMape), [sijaneMape]);
+  useEffect(() => spremi(KLJUC_JEZICI, jezici), [jezici]);
+
+  /* Zeleni obrub fokusa pokazuje se samo onomu tko se kreće tipkom Tab. Prije
+     se palio i mišem: klik na gumb ili klizač, pa razmaknica ili strelica, i
+     preglednik bi zaključio da se radi tipkovnicom, pa oko gumba nacrtao
+     obrub koji nitko nije tražio. */
+  useEffect(() => {
+    const korijen = document.documentElement;
+    /** @param {KeyboardEvent} e */
+    const naTipku = (e) => {
+      if (e.key === "Tab") korijen.classList.add("gtipkovnica");
+    };
+    const naMis = () => korijen.classList.remove("gtipkovnica");
+    document.addEventListener("keydown", naTipku, true);
+    document.addEventListener("pointerdown", naMis, true);
+    return () => {
+      document.removeEventListener("keydown", naTipku, true);
+      document.removeEventListener("pointerdown", naMis, true);
+    };
+  }, []);
 
   /**
    * Pjesma unesena iz mape nosi ime te mape, a od njega ovdje nastaje popis —
@@ -413,33 +640,84 @@ export default function Glazba() {
   }, [zbirka]);
 
   const sve = useMemo(() => (zbirka && zbirka.pjesme) || [], [zbirka]);
+  /* Srca kao skup, jer ih pita svaki od pet stotina redaka. */
+  const srcaSkup = useMemo(() => new Set(srca), [srca]);
 
   /* ---------- zbirka u lijevom stupcu ---------- */
+
+  /** Kojoj glavnoj mapi pjesma pripada: što je čovjek premjestio, pa što piše u popisu. */
+  const glavnaMapa = useCallback(
+    (/** @type {any} */ p) => ((jezici[p.id] || p.jezik) === "hr" ? HRVATSKE : OSTALE),
+    [jezici],
+  );
 
   const police = useMemo(() => {
     /** @type {{ id: string, naslov: string, vrsta: string, pjesme: string[] }[]} */
     const out = [
       { id: "srca", naslov: t("Označeno srcem"), vrsta: "srca", pjesme: srca },
+      {
+        id: HRVATSKE,
+        naslov: t("Hrvatske pjesme"),
+        vrsta: "mapa",
+        pjesme: sve.filter((p) => glavnaMapa(p) === HRVATSKE).map((p) => p.id),
+      },
+      {
+        id: OSTALE,
+        naslov: t("Sve ostale pjesme"),
+        vrsta: "mapa",
+        pjesme: sve.filter((p) => glavnaMapa(p) === OSTALE).map((p) => p.id),
+      },
       { id: "sve", naslov: t("Sve pjesme"), vrsta: "sve", pjesme: sve.map((p) => p.id) },
     ];
     for (const l of liste) out.push({ ...l, vrsta: "lista" });
     for (const p of (zbirka && zbirka.police) || []) out.push({ ...p, vrsta: "izvodac" });
     return out;
-  }, [srca, sve, liste, zbirka, t]);
+  }, [srca, sve, liste, zbirka, t, glavnaMapa]);
 
   const viđene = useMemo(() => {
     const n = fold(traziZbirku.trim());
     return police.filter((p) => {
+      /* „Sve pjesme” su samo ono što gornja tražilica pretražuje. U zbirci
+         stoje dvije glavne mape, a ne i treća koja je obje zajedno. */
+      if (p.vrsta === "sve") return false;
       if (filtar === "liste" && p.vrsta === "izvodac") return false;
       if (filtar === "izvodaci" && p.vrsta !== "izvodac") return false;
       return !n || fold(p.naslov).includes(n);
     });
   }, [police, traziZbirku, filtar]);
 
-  const polica = useMemo(
-    () => police.find((p) => p.id === otvoreno.id) || police[1] || police[0],
-    [police, otvoreno],
-  );
+  /* Omoti za sličice u zbirci. Računaju se jednom po promjeni zbirke, a ne pri
+     svakom prikazu: „Sve ostale pjesme” imaju tristo pjesama. */
+  const omotiPolica = useMemo(() => {
+    /** @type {Map<string, string[]>} */
+    const m = new Map();
+    for (const p of police) {
+      /** @type {string[]} */
+      const prve = [];
+      for (const id of p.pjesme) {
+        const x = poId.get(id);
+        if (x && x.omot) prve.push(x.omot);
+        if (prve.length >= 4) break;
+      }
+      m.set(p.id, prve);
+    }
+    return m;
+  }, [police, poId]);
+
+  const polica = useMemo(() => {
+    const nadena = police.find((p) => p.id === otvoreno.id);
+    if (nadena) return nadena;
+    /* Nema li više te police, otvara se glavna mapa u kojoj ičega ima. */
+    return police.find((p) => p.vrsta === "mapa" && p.pjesme.length) || police[1];
+  }, [police, otvoreno]);
+
+  /* Koji popis u zbirci svira: onaj s kojega je red pušten, a ako je pušten
+     izvan zbirke (tražilicom, iz „Još od izvođača”), glavna mapa pjesme. */
+  const policaKojaSvira = useMemo(() => {
+    if (!sada) return "";
+    if (izvor && izvor !== "sve" && police.some((p) => p.id === izvor)) return izvor;
+    return glavnaMapa(sada);
+  }, [sada, izvor, police, glavnaMapa]);
 
   /** Pjesme otvorene police, poredane i pretražene. */
   const prikazane = useMemo(() => {
@@ -487,11 +765,98 @@ export default function Glazba() {
 
   const prekidac = useCallback(() => {
     if (!sada) {
-      if (prikazane.length) pusti(prikazane.map((p) => p.id), 0);
+      if (prikazane.length) pusti(prikazane.map((p) => p.id), 0, polica.id);
       return;
     }
     svirac.prekidac();
-  }, [sada, prikazane, pusti]);
+  }, [sada, prikazane, pusti, polica.id]);
+
+  /* Za retke: pusti i-tu pjesmu otvorene police, ili zaustavi ako je baš ona. */
+  const pustiRedak = useCallback(
+    (/** @type {number} */ i, /** @type {boolean} */ jeSada) => {
+      if (jeSada) svirac.prekidac();
+      else pusti(prikazane.map((x) => x.id), i, polica.id);
+    },
+    [prikazane, pusti, polica.id],
+  );
+
+  const otvoriJelovnik = useCallback((/** @type {any} */ e, /** @type {string} */ id) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    /* Izbornik ima i dno, pa se uz donji rub prozora otvara prema gore. */
+    const gore = window.innerHeight - r.bottom < 330;
+    setJelovnik((j) =>
+      j && j.id === id
+        ? null
+        : {
+            id,
+            x: Math.min(r.left, window.innerWidth - 240),
+            y: gore ? window.innerHeight - r.top + 6 : r.bottom + 6,
+            gore,
+          },
+    );
+  }, []);
+
+  /* ---------- pjesma koja svira ostaje na vidiku ---------- */
+
+  /**
+   * Redak pjesme koja svira, ako je u otvorenom popisu.
+   * @param {"odmah" | "glatko"} kako @param {boolean} samoAkoNijeVidljiv
+   */
+  const pokaziSviranu = useCallback(
+    (kako, samoAkoNijeVidljiv) => {
+      const okvir = glavnoRef.current;
+      if (!okvir || !sada) return;
+      const redak = /** @type {HTMLElement | null} */ (
+        okvir.querySelector('[data-pjesma="' + CSS.escape(sada.id) + '"]')
+      );
+      if (!redak) return;
+      if (samoAkoNijeVidljiv) {
+        const o = okvir.getBoundingClientRect();
+        const r = redak.getBoundingClientRect();
+        /* Gore stoji zaglavlje stupaca, a dolje na mobitelu svirač. */
+        const dno = Math.min(o.bottom, window.innerHeight) - 8;
+        if (r.top >= o.top + 44 && r.bottom <= dno) return;
+      }
+      const o = okvir.getBoundingClientRect();
+      const r = redak.getBoundingClientRect();
+      /* Popis ne klizi uvijek sam: na mobitelu klizi cijeli prikaz, pa se tada
+         prepušta pregledniku da nađe što treba pomaknuti. */
+      if (okvir.scrollHeight <= okvir.clientHeight) {
+        redak.scrollIntoView({ block: "center" });
+        return;
+      }
+      const cilj = Math.max(0, okvir.scrollTop + r.top - o.top - (o.height - r.height) / 2);
+      if (kako === "odmah") {
+        okvir.scrollTop = cilj;
+        return;
+      }
+      okvir.scrollTo({ top: cilj, behavior: "smooth" });
+      /* Glatko klizanje preglednik zna i preskočiti, u prozoru koji se ne crta
+         ili kad je pomak dug, pa ako popis nije stigao, skače se odmah. */
+      setTimeout(() => {
+        if (Date.now() - rucnoPomaknuto.current < 1000) return;
+        if (Math.abs(okvir.scrollTop - cilj) > 4) okvir.scrollTop = cilj;
+      }, 900);
+    },
+    [sada],
+  );
+
+  /* Otvori li se popis u kojem svira ono što svira, popis se otvara na njoj. */
+  useEffect(() => {
+    if (ucitavam) return;
+    pokaziSviranu("odmah", false);
+    // Samo pri otvaranju police; sljedeća pjesma ima svoj učinak ispod.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polica.id, ucitavam]);
+
+  /* Kad krene sljedeća, popis je prati, osim dok ga čovjek sam pomiče. */
+  const sadaId = sada ? sada.id : "";
+  useEffect(() => {
+    if (!sadaId || Date.now() - rucnoPomaknuto.current < 4000) return;
+    pokaziSviranu("glatko", true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sadaId]);
 
   useEffect(() => {
     /** @param {KeyboardEvent} e */
@@ -499,7 +864,9 @@ export default function Glazba() {
       const c = /** @type {HTMLElement} */ (e.target);
       const upisuje = c && (c.tagName === "INPUT" || c.tagName === "TEXTAREA" || c.isContentEditable);
       if (e.key === "Escape") {
-        if (noviPopisZa !== null) setNoviPopisZa(null);
+        if (zaUkloniti) {
+          if (!uklanjam) setZaUkloniti(null);
+        } else if (noviPopisZa !== null) setNoviPopisZa(null);
         else if (jelovnik) setJelovnik(null);
         else if (mjeracOtvoren) setMjeracOtvoren(null);
         else if (zbirkaOtvorena) setZbirkaOtvorena(false);
@@ -517,7 +884,7 @@ export default function Glazba() {
     };
     document.addEventListener("keydown", naTipku);
     return () => document.removeEventListener("keydown", naTipku);
-  }, [prekidac, jelovnik, mjeracOtvoren, zbirkaOtvorena, noviPopisZa]);
+  }, [prekidac, jelovnik, mjeracOtvoren, zbirkaOtvorena, noviPopisZa, zaUkloniti, uklanjam]);
 
   useEffect(() => {
     if (!jelovnik) return;
@@ -607,10 +974,9 @@ export default function Glazba() {
    * Van iz popisa, ali ne i iz zbirke.
    *
    * Miče se samo iz **vlastitih popisa**, jer su oni ono što je čovjek složio i
-   * smije rasložiti. „Sve pjesme” i police po izvođačima nisu popisi nego
-   * pogled na zbirku: ondje stoji sve što na uređaju postoji, pa se odande i ne
-   * miče — pjesma bi nestala iz jedinoga mjesta na kojem je sigurno ima.
-   * Zbirka se prazni na svojem mjestu, u okviru „Zbirka”.
+   * smije rasložiti. Glavne mape i police po izvođačima nisu popisi nego pogled
+   * na zbirku, pa se odande pjesma ne miče nego **uklanja** — skroz, sa
+   * snimkom, vidi `ukloni` ispod.
    */
   const izPopisa = useCallback((idListe, idPjesme) => {
     setListe((l) =>
@@ -624,6 +990,56 @@ export default function Glazba() {
     setSrca((s) => (s.includes(id) ? s.filter((x) => x !== id) : [id, ...s]));
   }, []);
 
+  /** Iz jedne glavne mape u drugu. @param {any} p */
+  const premjesti = useCallback(
+    (p) => {
+      const u = glavnaMapa(p) === HRVATSKE ? "drugi" : "hr";
+      setJezici((j) => {
+        const novi = { ...j };
+        /* Vraćena na ono što piše u popisu, pjesma iz ovoga zapisa ispada. */
+        if ((p.jezik || "drugi") === u) delete novi[p.id];
+        else novi[p.id] = u;
+        return novi;
+      });
+    },
+    [glavnaMapa],
+  );
+
+  /**
+   * Pjesma van iz zbirke, sa snimkom.
+   *
+   * Nije isto što i „Makni iz ovog popisa”: ondje pjesma ostaje u zbirci, a
+   * ovdje odlazi s diska, odnosno s mobitela, i oslobađa mjesto. Zato traži
+   * potvrdu, a natrag se vraća samo ponovnim dodavanjem poveznice.
+   */
+  const ukloni = useCallback(async () => {
+    const p = zaUkloniti;
+    if (!p || uklanjam) return;
+    setUklanjam(true);
+    setGreskaUklanjanja("");
+    /* Svirač je pušta prije brisanja, da poslužitelj ne briše datoteku koju
+       element još čita. */
+    svirac.izbaci(p.id);
+    try {
+      await ukloniPjesmu(p.id);
+    } catch (e) {
+      setGreskaUklanjanja(e && e.message ? String(e.message) : t("Pjesma se nije dala ukloniti."));
+      setUklanjam(false);
+      return;
+    }
+    setSrca((s) => s.filter((x) => x !== p.id));
+    setListe((l) => l.map((x) => ({ ...x, pjesme: x.pjesme.filter((y) => y !== p.id) })));
+    setJezici((j) => {
+      if (!(p.id in j)) return j;
+      const novi = { ...j };
+      delete novi[p.id];
+      return novi;
+    });
+    await ucitajPopis();
+    setUklanjam(false);
+    setZaUkloniti(null);
+  }, [zaUkloniti, uklanjam, ucitajPopis, t]);
+
   /* ---------- prikaz ---------- */
 
   /* Okvir za dodavanje stoji u svim trima granama prikaza, jer se pjesma
@@ -635,7 +1051,7 @@ export default function Glazba() {
         <Dodaj
           naZatvori={() => setDodajOtvoren(false)}
           naDodano={ucitajPopis}
-          naPusti={(id) => pusti([id], 0)}
+          naPusti={(id) => pusti([id], 0, "")}
         />
       </Suspense>
     ) : null;
@@ -700,6 +1116,10 @@ export default function Glazba() {
 
   const razredi =
     "gsadrzaj" + (panel ? " spanelom" : "") + (zbirkaOtvorena ? " szbirkom" : "");
+
+  /** Natpis vrste police, iznad naslova i ispod njega u zbirci. @param {string} vrsta */
+  const vrstaPolice = (vrsta) =>
+    vrsta === "izvodac" ? t("Izvođač") : vrsta === "mapa" || vrsta === "sve" ? t("Mapa") : t("Popis");
 
   /* Naslov stupca kojim se popis poreda. Obična funkcija, a ne komponenta,
      jer bi React komponentu opisanu unutar Lucifyja pri svakom prikazu
@@ -776,8 +1196,16 @@ export default function Glazba() {
             aria-label={t("Traži po zbirci")}
             autoComplete="off"
             onChange={(e) => {
-              setTrazi(e.target.value);
-              if (e.target.value.trim()) setOtvoreno({ vrsta: "sve", id: "sve" });
+              const upisano = e.target.value;
+              setTrazi(upisano);
+              if (upisano.trim()) {
+                /* Traži se po cijeloj zbirci, a zapamti se odakle se krenulo. */
+                if (otvoreno.id !== "sve") prijeTrazenja.current = otvoreno;
+                setOtvoreno({ vrsta: "sve", id: "sve" });
+              } else if (prijeTrazenja.current) {
+                setOtvoreno(prijeTrazenja.current);
+                prijeTrazenja.current = null;
+              }
             }}
           />
         </label>
@@ -888,20 +1316,18 @@ export default function Glazba() {
 
           <div className="gpopis">
             {viđene.map((p) => {
-              const prve = p.pjesme
-                .map((id) => poId.get(id))
-                .filter(Boolean)
-                .map((x) => x.omot)
-                .filter(Boolean);
+              const prve = omotiPolica.get(p.id) || [];
+              const ovdjeSvira = p.id === policaKojaSvira;
               return (
                 <button
                   key={p.id}
                   type="button"
-                  className="gstavka"
+                  className={"gstavka" + (ovdjeSvira ? " svira" : "")}
                   aria-current={p.id === polica.id ? "true" : undefined}
                   onClick={() => {
                     setOtvoreno({ vrsta: p.vrsta, id: p.id });
                     setTrazi("");
+                    prijeTrazenja.current = null;
                     setZbirkaOtvorena(false);
                   }}
                 >
@@ -909,10 +1335,12 @@ export default function Glazba() {
                   <span>
                     <b>{p.naslov}</b>
                     <span>
-                      {p.vrsta === "izvodac" ? t("Izvođač") : t("Popis")} &middot; {p.pjesme.length}{" "}
+                      {vrstaPolice(p.vrsta)} &middot; {p.pjesme.length}{" "}
                       {pjesama(p.pjesme.length, jezik)}
                     </span>
                   </span>
+                  {/* Isti stupci kao u retku pjesme, uz popis s kojega svira. */}
+                  {ovdjeSvira && svira ? <Stupci /> : null}
                 </button>
               );
             })}
@@ -920,14 +1348,23 @@ export default function Glazba() {
           </div>
         </nav>
 
-        <main className="gglavno">
+        <main
+          className="gglavno"
+          ref={glavnoRef}
+          onWheel={() => {
+            rucnoPomaknuto.current = Date.now();
+          }}
+          onTouchMove={() => {
+            rucnoPomaknuto.current = Date.now();
+          }}
+        >
           <header className="gzaglavlje" style={stil({ "--ton": ton(polica.naslov) })}>
             <Omot
               ime={polica.naslov}
               mozaik={polica.vrsta === "izvodac" ? mozaik.slice(0, 1) : mozaik}
             />
             <div className="gnatpisi">
-              <div className="vrsta">{polica.vrsta === "izvodac" ? t("Izvođač") : t("Popis")}</div>
+              <div className="vrsta">{vrstaPolice(polica.vrsta)}</div>
               <h1>{polica.naslov}</h1>
               <div className="mjere">
                 <b>Lucify</b>
@@ -952,7 +1389,7 @@ export default function Glazba() {
               onClick={() => {
                 const isti = sada && prikazane.some((p) => p.id === sada.id) && red.length;
                 if (isti) prekidac();
-                else if (prikazane.length) pusti(prikazane.map((p) => p.id), 0);
+                else if (prikazane.length) pusti(prikazane.map((p) => p.id), 0, polica.id);
               }}
             >
               {svira ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
@@ -974,14 +1411,9 @@ export default function Glazba() {
             <div className="gmjerac">
               <button
                 type="button"
-                className={"gikona" + (mjerac ? " gtraje" : "")}
+                className={"gikona" + (imaMjerac ? " gtraje" : "")}
                 aria-expanded={!!mjeracOtvoren}
-                aria-label={
-                  mjerac
-                    ? t("Mjerač vremena, još ") +
-                      (mjerac.kraj ? "do kraja pjesme" : odbroj(mjerac.ostalo))
-                    : t("Mjerač vremena")
-                }
+                aria-label={t("Mjerač vremena")}
                 title={t("Zaustavi glazbu nakon zadanog vremena")}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1010,9 +1442,7 @@ export default function Glazba() {
                 }}
               >
                 <Clock size={22} aria-hidden="true" />
-                {mjerac ? (
-                  <span>{mjerac.kraj ? "do kraja pjesme" : odbroj(mjerac.ostalo)}</span>
-                ) : null}
+                <MjeracOdbroj t={t} />
               </button>
 
               {mjeracOtvoren ? (
@@ -1034,7 +1464,7 @@ export default function Glazba() {
                   ))}
                   <button
                     type="button"
-                    aria-current={mjerac && mjerac.kraj ? "true" : undefined}
+                    aria-current={mjeracKraj ? "true" : undefined}
                     onClick={() => {
                       svirac.mjeracDoKraja();
                       setMjeracOtvoren(null);
@@ -1065,7 +1495,7 @@ export default function Glazba() {
                     <span>min</span>
                     <button type="submit">{t("Postavi")}</button>
                   </form>
-                  {mjerac ? (
+                  {imaMjerac ? (
                     <>
                       <hr />
                       <button
@@ -1094,116 +1524,22 @@ export default function Glazba() {
             </div>
 
             {prikazane.map((p, i) => {
-              const jeSada = sada && sada.id === p.id;
+              const jeSada = !!sada && sada.id === p.id;
               return (
-                <div
+                <Redak
                   key={p.id}
-                  className={
-                    "gredak pjesma" + (jeSada ? " sada" : "") + (jeSada && svira ? " gtece" : "")
-                  }
-                  onDoubleClick={() => pusti(prikazane.map((x) => x.id), i)}
-                  /* Na dodir dvostrukoga klika nema, pa redak ondje pušta
-                     jednim dodirom, kako to na telefonu i inače ide. Pitamo
-                     `hover: none`, a ne širinu zaslona: dodir je ono što ovdje
-                     doista odlučuje. Dodir na tipku ili poveznicu u retku
-                     ostaje njihov, da srce i izbornik rade svoje. */
-                  onClick={(e) => {
-                    if (!window.matchMedia("(hover: none)").matches) return;
-                    if (/** @type {HTMLElement} */ (e.target).closest("button, a")) return;
-                    pusti(
-                      prikazane.map((x) => x.id),
-                      i,
-                    );
-                  }}
-                >
-                  <button
-                    type="button"
-                    className="gbroj"
-                    aria-label={t("Pusti ") + p.naslov}
-                    onClick={() => {
-                      if (jeSada) prekidac();
-                      else pusti(prikazane.map((x) => x.id), i);
-                    }}
-                  >
-                    <span className="gbrojka">{i + 1}</span>
-                    {jeSada && svira ? (
-                      <span className="gsviraju" aria-hidden="true">
-                        <i />
-                        <i />
-                        <i />
-                        <i />
-                      </span>
-                    ) : null}
-                    <span className="gznak" aria-hidden="true">
-                      {jeSada && svira ? (
-                        <Pause size={13} fill="currentColor" />
-                      ) : (
-                        <Play size={13} fill="currentColor" />
-                      )}
-                    </span>
-                  </button>
-
-                  <span className="naslov">
-                    <Omot ime={p.naslov} slika={p.omot} />
-                    <span>
-                      <b>{p.naslov}</b>
-                      <span>{p.izvodac}</span>
-                    </span>
-                  </span>
-
-                  <span className="stupac">
-                    {p.razdoblje ? (
-                      p.razdoblje
-                    ) : p.yt && mreza ? (
-                      <a
-                        className="gizvor"
-                        href={"https://www.youtube.com/watch?v=" + p.yt}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                      >
-                        YouTube
-                      </a>
-                    ) : p.yt ? (
-                      /* Bez mreže ostaje natpis, ali ne i poveznica: pjesma i
-                         dalje svira, a klik bi vodio u prazan zaslon. */
-                      <span className="gizvor nema">YouTube</span>
-                    ) : (
-                      t("Datoteka")
-                    )}
-                  </span>
-
-                  <span className="dodano">{p.dodano}</span>
-
-                  <span className="kraj">
-                    <button
-                      type="button"
-                      className={"gsrce" + (srca.includes(p.id) ? " puno" : "")}
-                      aria-label={srca.includes(p.id) ? t("Makni iz srca") : t("Označi srcem")}
-                      aria-pressed={srca.includes(p.id)}
-                      onClick={() => srce(p.id)}
-                    >
-                      <Heart size={15} fill={srca.includes(p.id) ? "currentColor" : "none"} />
-                    </button>
-                    {mmss(p.trajanje)}
-                    <button
-                      type="button"
-                      className="gvise"
-                      aria-label={t("Više o pjesmi")}
-                      aria-expanded={jelovnik && jelovnik.id === p.id ? "true" : "false"}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const r = e.currentTarget.getBoundingClientRect();
-                        setJelovnik(
-                          jelovnik && jelovnik.id === p.id
-                            ? null
-                            : { id: p.id, x: Math.min(r.left, window.innerWidth - 240), y: r.bottom + 6 },
-                        );
-                      }}
-                    >
-                      <MoreHorizontal size={16} aria-hidden="true" />
-                    </button>
-                  </span>
-                </div>
+                  p={p}
+                  i={i}
+                  jeSada={jeSada}
+                  tece={jeSada && svira}
+                  srcem={srcaSkup.has(p.id)}
+                  otvoren={!!jelovnik && jelovnik.id === p.id}
+                  mreza={mreza}
+                  t={t}
+                  naPusti={pustiRedak}
+                  naSrce={srce}
+                  naJelovnik={otvoriJelovnik}
+                />
               );
             })}
 
@@ -1323,7 +1659,7 @@ export default function Glazba() {
                           <button
                             key={x.id}
                             type="button"
-                            onClick={() => pusti([x.id, ...jos.filter((y) => y.id !== x.id).map((y) => y.id)], 0)}
+                            onClick={() => pusti([x.id, ...jos.filter((y) => y.id !== x.id).map((y) => y.id)], 0, "")}
                           >
                             <Omot ime={x.naslov} slika={x.omot} />
                             <span>
@@ -1457,41 +1793,10 @@ export default function Glazba() {
             </button>
           </div>
 
-          <div className="gcrta">
-            <span>{mmss(vrijeme)}</span>
-            <Klizac
-              vrijednost={Math.min(vrijeme, trajanje)}
-              najvise={trajanje}
-              oznaka={t("Mjesto u pjesmi")}
-              naPromjenu={(v) => svirac.premotaj(v)}
-            />
-            <span>{mmss(trajanje)}</span>
-          </div>
+          <Vrijeme t={t} />
         </div>
 
-        <div className="gdesno">
-          <button
-            type="button"
-            className="gikona"
-            aria-label={tiho ? t("Uključi zvuk") : t("Utišaj")}
-            onClick={() => svirac.prigusi()}
-          >
-            {tiho || glasnoca === 0 ? (
-              <VolumeX size={18} aria-hidden="true" />
-            ) : glasnoca < 0.5 ? (
-              <Volume1 size={18} aria-hidden="true" />
-            ) : (
-              <Volume2 size={18} aria-hidden="true" />
-            )}
-          </button>
-          <Klizac
-            razred="gglasnoca"
-            vrijednost={tiho ? 0 : glasnoca * 100}
-            najvise={100}
-            oznaka={t("Glasnoća")}
-            naPromjenu={(v) => svirac.postaviGlasnocu(v / 100)}
-          />
-        </div>
+        <Glasnoca t={t} />
       </div>
 
       {/* Donja traka postoji samo na mobitelu, gdje se za zbirku i svirač
@@ -1582,7 +1887,11 @@ export default function Glazba() {
       {jelovnik ? (
         <div
           className="gjelovnik"
-          style={{ left: jelovnik.x, top: jelovnik.y }}
+          style={{
+            left: jelovnik.x,
+            top: jelovnik.gore ? "auto" : jelovnik.y,
+            bottom: jelovnik.gore ? jelovnik.y : "auto",
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -1592,7 +1901,7 @@ export default function Glazba() {
               setJelovnik(null);
             }}
           >
-            {srca.includes(jelovnik.id) ? t("Makni iz srca") : t("Označi srcem")}
+            {srcaSkup.has(jelovnik.id) ? t("Makni iz srca") : t("Označi srcem")}
           </button>
           <hr />
           <h6>{t("Dodaj u popis")}</h6>
@@ -1631,18 +1940,98 @@ export default function Glazba() {
               </button>
             </>
           ) : null}
-          {poId.get(jelovnik.id) && poId.get(jelovnik.id).yt && mreza ? (
+          {poId.get(jelovnik.id) ? (
             <>
               <hr />
-              <a
-                href={"https://www.youtube.com/watch?v=" + poId.get(jelovnik.id).yt}
-                target="_blank"
-                rel="noreferrer noopener"
+              <button
+                type="button"
+                onClick={() => {
+                  premjesti(poId.get(jelovnik.id));
+                  setJelovnik(null);
+                }}
               >
-                {t("Otvori na YouTubeu")}
-              </a>
+                {glavnaMapa(poId.get(jelovnik.id)) === HRVATSKE
+                  ? t("Premjesti u Sve ostale pjesme")
+                  : t("Premjesti u Hrvatske pjesme")}
+              </button>
+              {poId.get(jelovnik.id).yt && mreza ? (
+                <a
+                  href={"https://www.youtube.com/watch?v=" + poId.get(jelovnik.id).yt}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  {t("Otvori na YouTubeu")}
+                </a>
+              ) : null}
+              <hr />
+              <button
+                type="button"
+                className="gopasno"
+                onClick={() => {
+                  setGreskaUklanjanja("");
+                  setZaUkloniti(poId.get(jelovnik.id));
+                  setJelovnik(null);
+                }}
+              >
+                {t("Ukloni iz zbirke…")}
+              </button>
             </>
           ) : null}
+        </div>
+      ) : null}
+
+      {zaUkloniti ? (
+        <div className="gokvir" onClick={() => (uklanjam ? null : setZaUkloniti(null))}>
+          <div
+            className="gkutija gukloni"
+            role="alertdialog"
+            aria-labelledby="gukloninaslov"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="gukloniglava">
+              <Omot ime={zaUkloniti.naslov} slika={zaUkloniti.omot} />
+              <div>
+                <h2 id="gukloninaslov">{t("Ukloniti iz zbirke?")}</h2>
+                <b>{zaUkloniti.naslov}</b>
+                <span>{zaUkloniti.izvodac}</span>
+              </div>
+            </div>
+            <p className="uz">
+              {NA_UREDAJU
+                ? t("Snimka se briše s ovog uređaja i oslobađa mjesto. Nestaje i iz srca i iz svih popisa.")
+                : t("Snimka se briše s diska i oslobađa mjesto. Nestaje i iz srca i iz svih popisa.")}
+            </p>
+            <p className="uz">
+              {NA_UREDAJU
+                ? t("Natrag se vraća samo iznova: poveznicom u Lucifyju na računalu, pa uvozom cijele zbirke.")
+                : t("Natrag se vraća samo iznova, poveznicom, tipkom „Dodaj pjesmu”.")}
+            </p>
+            {zaUkloniti.yt ? (
+              /* Poveznica stoji odmah ovdje, jer je upravo ona ono što će
+                 trebati da se pjesma vrati. */
+              <input
+                className="gukloniveza"
+                readOnly
+                value={adresaSnimke(zaUkloniti.yt)}
+                aria-label={t("Poveznica na snimku")}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            ) : null}
+            {greskaUklanjanja ? <p className="guklonigreska">{greskaUklanjanja}</p> : null}
+            <div className="gdno">
+              <button
+                type="button"
+                className="blijedo"
+                disabled={uklanjam}
+                onClick={() => setZaUkloniti(null)}
+              >
+                {t("Odustani")}
+              </button>
+              <button type="button" className="glavna opasno" disabled={uklanjam} autoFocus onClick={ukloni}>
+                {uklanjam ? t("Uklanjam…") : t("Ukloni")}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

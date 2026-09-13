@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { procitajVeze } from "../src/glazba-veze.mjs";
 import { dohvatiYtDlp } from "./alati.mjs";
-import { dodajUPopis, putovi } from "./glazba-zbirka.mjs";
+import { dodajUPopis, putovi, ukloniIzPopisa } from "./glazba-zbirka.mjs";
 import { Greska, javna, provjeriAlate, zaboraviAlate } from "./preuzimac-alati.mjs";
 import { KAKVOCE, ZADANA_KAKVOCA, kakvoca, podatci, uMp3, zvuk } from "./preuzimac-posao.mjs";
 
@@ -193,12 +193,22 @@ function napravi(korijen) {
     }
   }
 
-  /** Naslov snimke koja je već u zbirci, da se u okviru ne pojavi gola oznaka. @param {string} oznaka */
+  /**
+   * Pjesma koja u zbirci već stoji pod tom snimkom, da se u okviru ne pojavi
+   * gola oznaka. Traži se i po `yt`, a ne samo po imenu: pjesma unesena iz mape
+   * zove se po naslovu, a poveznicu joj je poslije našao `npm run youtube`.
+   * @param {string} oznaka
+   */
   function izPopisa(oznaka) {
     const { popisPut } = putovi(korijen);
     try {
       const popis = JSON.parse(readFileSync(popisPut, "utf8"));
-      return (popis.pjesme || []).find((/** @type {any} */ x) => x.id === oznaka) || null;
+      const pjesme = popis.pjesme || [];
+      return (
+        pjesme.find((/** @type {any} */ x) => x.id === oznaka) ||
+        pjesme.find((/** @type {any} */ x) => x.yt === oznaka) ||
+        null
+      );
     } catch {
       return null;
     }
@@ -454,7 +464,8 @@ export function preuzimacRukovatelj(korijen) {
         /* Ista snimka drugi put ne preuzima se iznova: ime datoteke je
            oznaka snimke, pa se odmah vidi da je već ovdje. */
         const vec = p.izPopisa(v.oznaka);
-        if (existsSync(join(zbirka, v.oznaka + ".mp3"))) {
+        const datoteka = vec && vec.datoteka ? vec.datoteka : v.oznaka + ".mp3";
+        if (existsSync(join(zbirka, datoteka))) {
           p.javi(posao, {
             stanje: "vec",
             korak: "Već u zbirci",
@@ -495,6 +506,43 @@ export function preuzimacRukovatelj(korijen) {
         p.guraj();
       }
       posalji(res, 200, p.snimak(posao));
+      return;
+    }
+
+    /* Pjesma van iz zbirke, s diska. Stoji uz preuzimač, a ne uz posluživanje,
+       jer je njegov par: što se ovdje ukloni, vraća se samo ponovnim dodavanjem
+       poveznice. */
+    if (staza === "ukloni" && req.method === "POST") {
+      const id = upit.get("id") || "";
+      const uTijeku = [...p.poslovi.values()].some(
+        (x) => x.oznaka === id && ["ceka", "citam", "preuzimam", "pretvaram"].includes(x.stanje),
+      );
+      if (uTijeku) {
+        posalji(res, 409, {
+          greska: { oznaka: "U_TIJEKU", poruka: "Ta se pjesma upravo preuzima." },
+        });
+        return;
+      }
+      try {
+        const uklonjena = ukloniIzPopisa(korijen, id);
+        if (!uklonjena) {
+          posalji(res, 404, { greska: { oznaka: "NEMA_PJESME", poruka: "Te pjesme nema u zbirci." } });
+          return;
+        }
+        /* Redak u okviru „Dodaj pjesmu” više ne govori istinu, pa odlazi. */
+        for (const x of [...p.poslovi.values()]) {
+          if (x.oznaka === id || (uklonjena.yt && x.oznaka === uklonjena.yt)) p.poslovi.delete(x.id);
+        }
+        posalji(res, 200, { ok: true, id });
+      } catch (e) {
+        posalji(res, 500, {
+          greska: {
+            oznaka: "NE_BRISE_SE",
+            poruka: "Pjesma se nije dala ukloniti.",
+            detalj: e && e.message ? String(e.message).slice(0, 300) : "",
+          },
+        });
+      }
       return;
     }
 

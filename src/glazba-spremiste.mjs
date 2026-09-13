@@ -356,6 +356,40 @@ function obrisiKljuceve(b, skladiste, kljucevi) {
   return Promise.all(kljucevi.map((k) => zahtjev(s.delete(k))));
 }
 
+/**
+ * Jedna pjesma van sa uređaja: snimka, omot i redak u popisu.
+ *
+ * Redak ide iz popisa zato da je ne vrati `samoDostupno()` ako se snimka
+ * ikad opet nađe, i da je `visak()` ne broji. Sljedeći uvoz donese svjež popis
+ * u kojem ona opet stoji, ali ne i snimku, jer izvoz „samo novo” zna da ju je
+ * uređaj već dobio; vraća se tek uvozom cijele zbirke.
+ *
+ * @param {string} id
+ * @returns {Promise<number>} koliko je bajtova oslobođeno
+ */
+export async function ukloni(id) {
+  const popis = await dajPopis();
+  const pjesme = popis && Array.isArray(popis.pjesme) ? popis.pjesme : [];
+  const p = pjesme.find((/** @type {any} */ x) => x.id === id);
+  const ostale = pjesme.filter((/** @type {any} */ x) => x.id !== id);
+  const omot = p && p.omot && !ostale.some((/** @type {any} */ x) => x.omot === p.omot) ? [p.omot] : [];
+
+  const oslobodeno = (await zbrojiVelicine(ZVUK, [id])) + (await zbrojiVelicine(OMOTI, omot));
+  const b = await otvori();
+  await Promise.all([obrisiKljuceve(b, ZVUK, [id]), obrisiKljuceve(b, OMOTI, omot)]);
+  if (popis && p) {
+    await spremiPopis({
+      ...popis,
+      pjesme: ostale,
+      police: (popis.police || []).map((/** @type {any} */ x) => ({
+        ...x,
+        pjesme: (x.pjesme || []).filter((/** @type {string} */ y) => y !== id),
+      })),
+    });
+  }
+  return oslobodeno;
+}
+
 /** Briše cijelu zbirku s ovoga uređaja. Srca i popisi u `localStorage` ostaju. */
 export async function obrisiSve() {
   const b = await otvori();

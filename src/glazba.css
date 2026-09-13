@@ -19,10 +19,10 @@
  * bi ga spremio, jer ga `vite.config.js` u načinu `namjenska` namjerno ne
  * uključuje. Ovako Lucify izvana ne traži više ništa, ni prvi put ni poslije.
  *
- * Uzeta je samo debljina 400: `IBM Plex Mono` javlja se na dva mjesta, u
- * `.gdalati` i u `.gppolje`, i ni na jednom se ne podeblja. Naslovi pjesama,
- * u kojima ima i ćirilice i japanskoga, idu sustavskim pismom i ovo ih ne
- * dira.
+ * Uzeta je samo debljina 400: `IBM Plex Mono` javlja se na tri mjesta, u
+ * `.gdalati`, `.gpoznaka` i `.gukloniveza`, i ni na jednom se ne podeblja.
+ * Naslovi pjesama, u kojima ima i ćirilice i japanskoga, idu sustavskim
+ * pismom i ovo ih ne dira.
  *
  * Podskupovi su dva, a `unicode-range` govori pregledniku koji mu treba:
  * `latin-ext` dohvati tek kad zatreba slovo iz njega, dakle na našim
@@ -102,9 +102,18 @@
   opacity: 0.42;
   cursor: default;
 }
-.glazba button:focus-visible,
-.glazba input:focus-visible,
-.glazba a:focus-visible {
+/* Zeleni obrub samo uz tipku Tab, kad je `Glazba.jsx` na korijen upisao
+   `gtipkovnica`. Prije je stajao uz svaki `:focus-visible`, a preglednik to
+   stanje pali i mišem: klik na klizač glasnoće ili na gumb, pa razmaknica ili
+   strelica, i oko njih bi iskočio obrub koji nitko nije tražio. Bez Taba
+   obruba nema ni u pregledniku, pa se i njegov gasi. */
+.glazba :focus-visible {
+  outline: none;
+}
+.gtipkovnica .glazba button:focus-visible,
+.gtipkovnica .glazba input:focus-visible,
+.gtipkovnica .glazba textarea:focus-visible,
+.gtipkovnica .glazba a:focus-visible {
   outline: 2px solid var(--zeleno);
   outline-offset: 2px;
 }
@@ -397,6 +406,17 @@
 .gstavka.svira b {
   color: var(--zeleno);
 }
+/* Popis s kojega svira dobiva iste stupce kao i redak pjesme, desno od
+   natpisa. Treći stupac mreže postoji uvijek, pa se natpis ne suzi i ne
+   poskoči kad stupci dođu i odu. */
+.gstavka {
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+}
+.gstavka .gsviraju {
+  display: flex;
+  align-self: center;
+  margin-right: 6px;
+}
 .gstavka span {
   display: block;
   color: var(--blijedo);
@@ -663,6 +683,17 @@
 .gredak.pjesma:hover {
   background: rgba(255, 255, 255, 0.07);
 }
+/* Redak koji je daleko izvan pogleda preglednik ne slaže i ne crta, nego mu
+   samo drži mjesto. U zbirci od pet stotina pjesama to je razlika između
+   popisa koji se otvara odmah i popisa koji pri svakom otvaranju zapne.
+
+   Mjera je 40, a ne 54, jer vrijedi za sadržaj, bez `padding`a. Sa 54 je
+   nacrtani redak narastao na 68, pa su se retci pomicali čim bi ih preglednik
+   nacrtao, a popis koji prati pjesmu promašivao bi je za pola zaslona. */
+.gredak.pjesma {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 40px;
+}
 /* Broj retka i trokut stoje jedno preko drugoga, a ne jedno umjesto drugoga,
    jer se širina stupca inače mijenjala pri prijelazu miša i cijeli je popis
    poskakivao ustranu. Vidi se uvijek samo jedan od njih.
@@ -707,16 +738,22 @@
   color: var(--zeleno);
 }
 
-/* Četiri stupca koja poskakuju dok pjesma svira, umjesto broja retka. Stoje u
-   DOM-u samo dok ta jedna pjesma svira, a ne u svakom retku sakriveni: inače bi
-   u popisu od sto trideset pjesama trajalo pet stotina animacija odjednom.
-   Čim se pauzira, stupci nestaju i broj se vraća. */
-.gredak .gsviraju {
+/* Četiri stupca koja poskakuju dok pjesma svira, umjesto broja retka, i uz
+   popis u zbirci s kojega svira. Stoje u DOM-u samo dok nešto svira, a ne u
+   svakom retku sakriveni: inače bi u popisu od pet stotina pjesama trajalo pet
+   stotina animacija odjednom. Čim se pauzira, stupci nestaju i broj se vraća.
+
+   Vrijedi i izvan retka, pa naziv ne ide kroz `.gredak`. Uz `.gstavka` treba
+   jači par od njezina `.gstavka span`, koji bi ih inače složio jedan pod drugi. */
+.gsviraju,
+.gstavka span.gsviraju {
   align-items: flex-end;
   gap: 2px;
   height: 13px;
+  width: auto;
+  overflow: visible;
 }
-.gredak .gsviraju i {
+.gsviraju i {
   width: 2px;
   height: 40%;
   border-radius: 1px;
@@ -725,16 +762,16 @@
 }
 /* Negativna zadrška, a ne pozitivna: stupci kreću razmaknuti od prve slike,
    umjesto da prvih pola sekunde stoje poravnati pa tek onda krenu. */
-.gredak .gsviraju i:nth-child(1) {
+.gsviraju i:nth-child(1) {
   animation-delay: -0.62s;
 }
-.gredak .gsviraju i:nth-child(2) {
+.gsviraju i:nth-child(2) {
   animation-delay: -0.17s;
 }
-.gredak .gsviraju i:nth-child(3) {
+.gsviraju i:nth-child(3) {
   animation-delay: -0.86s;
 }
-.gredak .gsviraju i:nth-child(4) {
+.gsviraju i:nth-child(4) {
   animation-delay: -0.38s;
 }
 @keyframes gskace {
@@ -747,7 +784,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .gredak .gsviraju i {
+  .gsviraju i {
     animation: none;
   }
 }
@@ -895,6 +932,59 @@
   letter-spacing: 0.07em;
   color: var(--blijedo);
   font-weight: 600;
+}
+/* Uklanjanje iz zbirke briše snimku, pa se od ostaloga razlikuje bojom. */
+.gjelovnik .gopasno {
+  color: #ff8a8a;
+}
+.gjelovnik .gopasno:hover {
+  background: rgba(255, 90, 90, 0.14);
+}
+
+/* ---------- okvir „Ukloniti iz zbirke?” ---------- */
+
+.gukloniglava {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.gukloniglava h2 {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.gukloniglava b,
+.gukloniglava span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gukloniglava b {
+  font-weight: 600;
+}
+.gukloniglava span {
+  color: var(--blijedo);
+  font-size: 13px;
+}
+.gukloni .uz + .uz {
+  margin-top: 6px;
+}
+.gkutija input.gukloniveza {
+  margin-top: 14px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  color: var(--blijedo);
+}
+.gukloni .guklonigreska {
+  margin-top: 12px;
+  color: #ff8a8a;
+  font-size: 13px;
+}
+.gkutija .glavna.opasno {
+  background: #ff5c5c;
+  color: #000;
 }
 
 /* ---------- desna ploča ---------- */
@@ -1681,143 +1771,205 @@ a.gdodajtipka {
 
 /* ---------- okvir „Poveznice” ---------- */
 
-/* Širina je ista kao u okviru za dodavanje, jer u oba stoji polje s tekstom
-   preko cijele širine, a dva različito široka okvira u istoj traci vide se
-   kao pogreška. */
-.gpploca {
-  width: min(680px, 100%);
-  max-height: min(86vh, 920px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.gpploca .gdglava {
+/* Okvir je stupac: glava i niz stranica gore, popis u sredini, tipke dolje.
+   Klizi samo popis, a ne cijeli okvir, pa „Kopiraj stranicu” uvijek stoji na
+   vidiku, a ne na dnu okvira koji se najprije mora odmotati. */
+.gkutija.gpploca {
+  width: min(720px, 100%);
+  max-height: min(88vh, 900px);
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.gpglava {
+  display: flex;
+  align-items: flex-start;
   gap: 10px;
+  padding: 20px 16px 0 22px;
 }
-.gpploca .gdglava h2 {
+.gpnatpis {
   flex: 1;
-  margin-bottom: 0;
+  min-width: 0;
 }
-.gpploca .uz {
-  margin-top: 8px;
-  margin-bottom: 16px;
+.gpnatpis h2 {
+  margin-bottom: 2px;
+}
+.gpnatpis span {
+  font-size: 12.5px;
+  color: var(--blijedo);
+  font-variant-numeric: tabular-nums;
+}
+.gpuz {
+  padding: 10px 22px 0;
+  font-size: 13px;
+  color: var(--blijedo);
+  max-width: 60ch;
 }
 
 .gpprazno {
   font-size: 13px;
   color: var(--blijedo);
-  padding: 18px 0 6px;
+  padding: 18px 22px 24px;
 }
 
-.gpbroj {
+/* Brojevi stranica. Kopirana dobiva kvačicu boje, trenutna je puna. */
+.gpstranice {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12.5px;
-  color: var(--blijedo);
-  margin-bottom: 7px;
-}
-.gpbroj b {
-  color: var(--tekst);
-  font-weight: 600;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 16px 22px 12px;
 }
 .gpstr {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
+  min-width: 32px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ploca-vis);
+  color: var(--blijedo);
+  font-size: 12.5px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.gpbrojstr {
-  padding: 0 3px;
-}
-/* Strelice stoje uz sam broj stranice, jer se ondje i gleda dokle se stiglo.
-   Manje su od običnoga kruga: uz redak od 12.5px onaj od 36px izgledao bi kao
-   tipka iz nekoga drugog okvira. */
-.gplist {
-  width: 26px;
-  height: 26px;
-}
-.gplist:disabled:hover {
-  background: none;
-  color: var(--blijedo);
-}
-
-/* Poveznice se ne prelamaju: redak mora ostati jedna adresa, da se u prijepisu
-   ne razlomi na dvije. Zato polje ima vodoravno klizanje, a ne `wrap`. */
-.gppolje {
-  width: 100%;
-  padding: 11px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--crta);
-  background: #121214;
+.gpstr:hover {
   color: var(--tekst);
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 12.5px;
-  line-height: 1.65;
-  resize: vertical;
-  white-space: pre;
-  overflow-wrap: normal;
-  overflow-x: auto;
+  background: #2a2a30;
 }
-.gppolje:focus {
-  outline: none;
-  border-color: var(--zeleno);
+.gpstr.gotova {
+  color: var(--zeleno);
+  box-shadow: inset 0 0 0 1px rgba(53, 209, 122, 0.45);
+}
+.gpstr[aria-selected="true"] {
+  background: var(--tekst);
+  color: #000;
+  box-shadow: none;
 }
 
-/* Naslovi su tu zato da se vidi što je u hrpici, pa stoje sitno i u dva stupca
-   ondje gdje za dva ima mjesta. Brojevi teku kroz cijelu zbirku, a ne od jedan
-   po hrpici, jer kazuju dokle se stiglo. */
-.gpnaslovi {
-  margin: 14px 0 0;
-  padding-left: 30px;
-  max-height: 190px;
+/* Sam popis: jedan redak po poveznici, bez polja i bez drugoga stupca. */
+.gppopis {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  font-size: 12.5px;
-  color: var(--blijedo);
+  margin: 0 10px;
+  padding: 4px 0 8px;
+  border-top: 1px solid var(--crta);
+  border-bottom: 1px solid var(--crta);
 }
-.gpnaslovi li {
-  padding: 2px 0;
+.gppopis li {
+  display: grid;
+  grid-template-columns: 30px 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 6px;
 }
-.gpnaslovi li::marker {
-  color: rgba(255, 255, 255, 0.3);
+.gppopis li:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.gpbr {
+  text-align: right;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
   font-variant-numeric: tabular-nums;
 }
-.gpn {
-  color: var(--tekst);
+.gpomot {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--ploca-vis);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
 }
-.gpi::before {
-  content: " · ";
-  color: rgba(255, 255, 255, 0.28);
+.gpomot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
-@media (min-width: 620px) {
-  .gpnaslovi {
-    columns: 2;
-    column-gap: 26px;
+.gptekst {
+  min-width: 0;
+}
+.gptekst b,
+.gptekst span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gptekst b {
+  font-weight: 500;
+  font-size: 13.5px;
+}
+.gptekst span {
+  font-size: 12px;
+  color: var(--blijedo);
+}
+.gpoznaka {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.4);
+}
+@media (max-width: 560px) {
+  .gpoznaka {
+    display: none;
   }
-  .gpnaslovi li {
-    break-inside: avoid;
+  .gppopis li {
+    grid-template-columns: 24px 36px minmax(0, 1fr);
+    gap: 10px;
   }
+}
+
+/* Polje iz kojega se kopira bez sigurne veze. Ne smije biti `display: none`,
+   jer se takvo polje ne da označiti. */
+.gpskriveno {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
 }
 
 .gpno {
   display: flex;
   align-items: center;
-  margin-top: 18px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px 16px 14px;
 }
-/* Listanje je otišlo gore, uz broj stranice, pa je kopiranje jedino što je u
-   ovom redu ostalo. */
+.gplistaj {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--blijedo);
+  font-variant-numeric: tabular-nums;
+}
+.gplistaj b {
+  color: var(--tekst);
+  font-weight: 600;
+}
+.gplistaj .gikona:disabled:hover {
+  background: none;
+  color: var(--blijedo);
+}
 .gpkopiraj {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 10px 18px;
+  padding: 11px 20px;
   border-radius: 999px;
   font-weight: 600;
   font-size: 13.5px;
+  transition: background-color 0.15s ease;
+}
+.gkutija .gpkopiraj.kopirano {
+  background: #1f8f53;
+  color: #fff;
 }
 
 /* ---------- mobitel ---------- */

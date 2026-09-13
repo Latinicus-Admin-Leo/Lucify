@@ -13,8 +13,9 @@
  * bi ondje `import.meta.url` pokazivao na privremeni spoj, a ne na ovu datoteku.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
+import { odrediJezike } from "../src/glazba-mape.mjs";
 import { adresaSnimke } from "../src/glazba-veze.mjs";
 
 /* ---------- ID3v2, samo ono što nam treba ---------- */
@@ -371,7 +372,10 @@ export function unos(zbirka, ime, prije) {
     ...(p.ispravljeno ? { ispravljeno: true } : {}),
     datoteka: ime,
     trajanje: podatci.trajanje,
-    yt: podatci.yt,
+    /* Snimka koja nije došla s YouTubea nema adrese u sebi, pa joj je poveznicu
+       našao `npm run youtube`, po trajanju. Ta živi samo u popisu, i bez ovoga
+       bi je svako čitanje zbirke izgubilo, a s njom i omot. */
+    yt: podatci.yt || p.yt || "",
     dodano: statSync(put).mtime.toISOString().slice(0, 10),
     izvorniNaslov: podatci.izvorniNaslov,
     /* Ova dva polja upisuje čovjek, za školske slušne primjere. */
@@ -382,9 +386,13 @@ export function unos(zbirka, ime, prije) {
        svaki drugi. Čita se iz staroga popisa, a ne iz datoteke: u njoj za to
        nema mjesta, a svako bi novo čitanje zbirke inače izgubilo pripadnost. */
     ...(p.mapa ? { mapa: p.mapa } : {}),
+    /* Kojoj od dviju glavnih mapa pjesma pripada. Jednom odlučeno ostaje, pa
+       i ono što je čovjek ispravio. */
+    ...(p.jezik ? { jezik: p.jezik } : {}),
     omot: "",
   };
 }
+
 
 /**
  * Izvođač s barem tri pjesme dobiva svoju policu, kao album. Ostali stanu u
@@ -420,6 +428,7 @@ export function police(pjesme) {
  * @param {any[]} pjesme
  */
 export function zapisi(popisPut, pjesme) {
+  odrediJezike(pjesme);
   pjesme.sort((a, b) => a.naslov.localeCompare(b.naslov, "hr"));
   const popis = { gradeno: new Date().toISOString(), pjesme, police: police(pjesme) };
   writeFileSync(popisPut, JSON.stringify(popis, null, 1) + "\n", "utf8");
@@ -527,4 +536,38 @@ export async function dodajUPopis(korijen, ime, yt) {
   /* I popis adresa, da nova pjesma odmah stigne i na objavljenu stranicu. */
   zapisiPoveznice(korijen, pjesme);
   return nova;
+}
+
+/**
+ * Pjesma van iz zbirke: iz popisa, a snimka i s diska.
+ *
+ * Postoji zbog mjesta, a ne zbog reda. Zbirka zna narasti na gigabajte, a
+ * računalo ili mobitel nemaju ih uvijek, pa pjesma koja se više ne sluša mora
+ * moći otići skroz, a ne samo iz pogleda. Natrag se vraća samo ponovnim
+ * dodavanjem poveznice, kao i svaka nova.
+ *
+ * Omot ide s njom, osim ako ga dijeli s drugom pjesmom iste snimke.
+ *
+ * @param {string} korijen
+ * @param {string} id
+ * @returns {any | null} uklonjena pjesma, ili null ako je u popisu nema
+ */
+export function ukloniIzPopisa(korijen, id) {
+  const { zbirka, popisPut } = putovi(korijen);
+  const prije = stari(popisPut);
+  const pjesma = prije[id];
+  if (!pjesma) return null;
+  const ostale = Object.values(prije).filter((p) => p.id !== id);
+
+  /* `basename`, a ne ime kakvo piše u popisu: popis je datoteka na disku, pa
+     ime u njemu ne smije moći izaći iz mape zbirke. */
+  const snimka = join(zbirka, basename(String(pjesma.datoteka || "")));
+  if (pjesma.datoteka && existsSync(snimka)) rmSync(snimka, { force: true });
+  if (pjesma.omot && !ostale.some((p) => p.omot === pjesma.omot)) {
+    rmSync(join(zbirka, "omoti", basename(String(pjesma.omot))), { force: true });
+  }
+
+  zapisi(popisPut, ostale);
+  zapisiPoveznice(korijen, ostale);
+  return pjesma;
 }

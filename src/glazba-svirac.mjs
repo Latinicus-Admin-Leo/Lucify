@@ -111,6 +111,9 @@ let poId = new Map();
 /** @type {string[]} */
 let red = [];
 let na = -1;
+/* Polica s koje je red pušten, da se u zbirci zna koji popis svira. Prazno
+   znači da je red složen izvan ijednoga popisa, npr. iz „Još od izvođača”. */
+let izvor = "";
 /** @type {any} */
 let sada = null;
 let svira = false;
@@ -168,9 +171,47 @@ export function stanje() {
       mijesaj,
       ponovi,
       mjerac,
+      izvor,
     };
   }
   return snimka;
+}
+
+/** @type {any} */
+let glavnaSnimka = null;
+
+/**
+ * Stanje **bez onoga što otkucava**: bez vremena u pjesmi, glasnoće i
+ * odbrojavanja mjerača.
+ *
+ * `timeupdate` javlja četiri puta u sekundi, a mjerač dvaput. Dok je sam
+ * Lucify gledao `stanje()`, svaki je taj otkucaj iznova crtao cijeli prikaz, s
+ * pet stotina redaka popisa, pa je sve zapinjalo čim bi glazba zasvirala. Sada
+ * ovo gleda prikaz, a otkucaje gledaju samo mali dijelovi koji ih pokazuju.
+ *
+ * Isti objekt vraća se dok se ništa od ovoga ne promijeni, iz istoga razloga
+ * kao i kod `stanje()`.
+ */
+export function glavno() {
+  const imaMjerac = !!mjerac;
+  const mjeracKraj = !!(mjerac && mjerac.kraj);
+  const g = glavnaSnimka;
+  if (
+    g &&
+    g.red === red &&
+    g.na === na &&
+    g.sada === sada &&
+    g.svira === svira &&
+    g.mijesaj === mijesaj &&
+    g.ponovi === ponovi &&
+    g.imaMjerac === imaMjerac &&
+    g.mjeracKraj === mjeracKraj &&
+    g.izvor === izvor
+  ) {
+    return g;
+  }
+  glavnaSnimka = { red, na, sada, svira, mijesaj, ponovi, imaMjerac, mjeracKraj, izvor };
+  return glavnaSnimka;
 }
 
 /** @param {() => void} f */
@@ -195,7 +236,7 @@ function osvjezi() {
 function zapamti() {
   if (!red.length) return;
   spremljenoNa = Math.floor(vrijeme);
-  spremi(KLJUC_ZADNJE, { red, na, vrijeme: spremljenoNa });
+  spremi(KLJUC_ZADNJE, { red, na, vrijeme: spremljenoNa, izvor });
 }
 
 /**
@@ -480,6 +521,7 @@ function vrati() {
   if (!a) return;
   red = cisti;
   na = indeks;
+  izvor = typeof z.izvor === "string" ? z.izvor : "";
   sada = poId.get(trazena);
   vrijeme = z.vrijeme || 0;
   /* `currentTime` nema kamo dok se ne pročita zaglavlje, pa se mjesto vraća tek
@@ -523,8 +565,20 @@ export function pjesma(id) {
 /**
  * @param {string[]} noviRed oznake pjesama
  * @param {number} indeks koja se od njih pušta
+ * @param {string} [odakle] polica s koje je red pušten
  */
-export function pusti(noviRed, indeks) {
+export function pusti(noviRed, indeks, odakle = "") {
+  izvor = odakle || "";
+  pustiURedu(noviRed, indeks);
+}
+
+/**
+ * Puštanje unutar istoga reda, pa i s iste police. Ovuda idu i sljedeća i
+ * prethodna, da pomak po redu ne zaboravi odakle je red došao.
+ *
+ * @param {string[]} noviRed @param {number} indeks
+ */
+function pustiURedu(noviRed, indeks) {
   const z = dajZvuk();
   const p = poId.get(noviRed[indeks]);
   if (!z || !p) return;
@@ -590,15 +644,15 @@ export function pomakni(smjer, samo) {
         return;
       }
       promijesaj(red.length, -1);
-      pusti(red, mijesano[0]);
+      pustiURedu(red, mijesano[0]);
       return;
     }
-    pusti(red, mijesano[sljedeci]);
+    pustiURedu(red, mijesano[sljedeci]);
     return;
   }
   const sljedeci = na + smjer;
   if (sljedeci < 0) {
-    pusti(red, red.length - 1);
+    pustiURedu(red, red.length - 1);
     return;
   }
   if (sljedeci >= red.length) {
@@ -607,10 +661,39 @@ export function pomakni(smjer, samo) {
       if (zvuk) zvuk.pause();
       return;
     }
-    pusti(red, 0);
+    pustiURedu(red, 0);
     return;
   }
-  pusti(red, sljedeci);
+  pustiURedu(red, sljedeci);
+}
+
+/**
+ * Pjesma koja je upravo uklonjena iz zbirke izlazi i iz reda. Ako je baš ona
+ * svirala, svira sljedeća; ako je bila zaustavljena, svirač se isprazni, jer
+ * zaustavljena pjesma koje više nema nema se ni čime nastaviti.
+ *
+ * Zove se **prije** brisanja, da poslužitelj ne briše datoteku koju element
+ * još čita.
+ *
+ * @param {string} id
+ */
+export function izbaci(id) {
+  if (!red.includes(id) && !(sada && sada.id === id)) return;
+  const noviRed = red.filter((x) => x !== id);
+  if (sada && sada.id === id) {
+    if (zeljaSvira && noviRed.length) {
+      pustiURedu(noviRed, Math.min(Math.max(na, 0), noviRed.length - 1));
+    } else {
+      zatvori();
+    }
+    return;
+  }
+  const trenutna = red[na];
+  red = noviRed;
+  na = red.indexOf(trenutna);
+  if (mijesaj) promijesaj(red.length, na);
+  zapamti();
+  osvjezi();
 }
 
 /** Skok na mjesto u pjesmi. @param {number} s */
@@ -683,6 +766,7 @@ export function zatvori() {
   }
   red = [];
   na = -1;
+  izvor = "";
   sada = null;
   svira = false;
   vrijeme = 0;

@@ -63,6 +63,28 @@ const EN = {
   "U ovom popisu još nema ničega.": "There is nothing in this playlist yet.",
   "Ništa pod tim imenom.": "Nothing by that name.",
   "Ništa za „": "Nothing for “",
+  "Hrvatske pjesme": "Croatian songs",
+  "Sve ostale pjesme": "All other songs",
+  Mapa: "Folder",
+  "Premjesti u Hrvatske pjesme": "Move to Croatian songs",
+  "Premjesti u Sve ostale pjesme": "Move to All other songs",
+  "Iz mape": "From folder",
+
+  /* ---------- uklanjanje iz zbirke ---------- */
+  "Ukloni iz zbirke…": "Remove from collection…",
+  "Ukloniti iz zbirke?": "Remove from the collection?",
+  Ukloni: "Remove",
+  "Uklanjam…": "Removing…",
+  "Pjesma se nije dala ukloniti.": "The song could not be removed.",
+  "Poveznica na snimku": "Link to the recording",
+  "Snimka se briše s diska i oslobađa mjesto. Nestaje i iz srca i iz svih popisa.":
+    "The recording is deleted from disk to free up space. It also disappears from favourites and from every playlist.",
+  "Snimka se briše s ovog uređaja i oslobađa mjesto. Nestaje i iz srca i iz svih popisa.":
+    "The recording is deleted from this device to free up space. It also disappears from favourites and from every playlist.",
+  "Natrag se vraća samo iznova, poveznicom, tipkom „Dodaj pjesmu”.":
+    "The only way back is to add it again, by its link, with “Add a song”.",
+  "Natrag se vraća samo iznova: poveznicom u Lucifyju na računalu, pa uvozom cijele zbirke.":
+    "The only way back is to add it again: by its link in Lucify on a computer, then by importing the whole collection.",
 
   /* ---------- stupci i poredak ---------- */
   Naslov: "Title",
@@ -170,6 +192,9 @@ const EN = {
   "Otvaram popis…": "Opening the list…",
   "Prethodna stranica": "Previous page",
   "Sljedeća stranica": "Next page",
+  Stranice: "Pages",
+  "Kopiraj stranicu": "Copy page",
+  Kopirano: "Copied",
 
   /* ---------- kakvoća zvuka ---------- */
   /* Imena dolaze s poslužitelja, iz `KAKVOCE`, pa se prevode pri ispisu. */

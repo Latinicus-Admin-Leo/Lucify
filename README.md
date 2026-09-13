@@ -63,6 +63,7 @@ npm install        # ovisnosti, uz njih i ffmpeg
 npm run dev        # razvojni poslužitelj (port 5176)
 npm run glazba     # iznova pročita zbirku
 npm run izvezi     # zbirka za mobitel, s naslovima i omotima
+npm run youtube    # poveznica i omot za pjesme koje nisu došle s YouTubea
 npm run izvezi -- --zip   # isto, ali u jednu datoteku, i samo ono novo
 npm run build      # produkcijski build
 npm run lint       # eslint . --quiet
@@ -109,6 +110,47 @@ URL, i poslužitelj. Pravi naslov živi u popisu.
 Ručno dopisano preživljava ponovno čitanje: `razdoblje` i `biljeska` uvijek, a naslov i
 izvođač uz zastavicu `ispravljeno: true`. Bez nje bi ih svako čitanje vratilo na ono što
 piše u datoteci, a ondje je izvođač često ime kanala koje je snimku prenijelo.
+
+### Hrvatske pjesme i sve ostale
+
+Zbirka u Lucifyju ne stoji kao jedna hrpa „Sve pjesme” nego kao dvije glavne mape:
+**Hrvatske pjesme** i **Sve ostale pjesme**. Dijeli se po jeziku kojim se pjeva, pa u prvu
+ide i ono s istoga govornoga područja (Balašević, Dino Merlin), a u drugu sve ostalo, pa i
+instrumentali. „Sve pjesme” su ostale samo iza gornje tražilice, koja traži po svemu.
+
+Odluka stoji u popisu, kao `jezik: "hr"` ili `"drugi"`, i piše se jednom. Za pjesmu koja
+tek stiže pogađa se u `src/glazba-mape.mjs`: hrvatska je ako je isti izvođač već među
+hrvatskima ili ako u naslovu ima naših kvačica. Promašaj se ispravlja u Lucifyju,
+izbornikom uz pjesmu (**Premjesti u…**), i to se pamti po uređaju, kao i srca.
+
+### Snimke koje nisu došle s YouTubea
+
+Pjesma unesena iz mape s računala nema u sebi adrese snimke, pa joj je u popisu pisalo
+„Datoteka”, bez omota, i nije je bilo u „Poveznicama”.
+
+```bash
+npm run youtube                          # zbirka iz projekta
+npm run youtube -- --zbirka "<mapa>"     # zbirka namjenske aplikacije
+npm run youtube -- --probaj              # samo ispiše što bi upisao
+```
+
+Snimka se traži po izvođaču i naslovu, a odlučuje se **po trajanju**: najviše sedam
+sekunda razlike, uz naslov i izvođača koji se poklapaju. Obrade, karaoke, remiksi i
+snimke iz publike ne dolaze u obzir ni uz savršeno trajanje. Ništa se ne preuzima;
+upisuju se oznaka snimke u popis i sličica u `omoti/`. Stari popis ostaje uz novi, kao
+`popis.json.prije-youtubea`. Pjesma za koju ništa nije nađeno ostaje kakva je bila, a u
+popisu joj piše iz koje je mape došla.
+
+### Uklanjanje pjesme
+
+Izbornik uz pjesmu nudi **Ukloni iz zbirke…**, i to nije isto što i „Makni iz ovog
+popisa”: pjesma odlazi skroz, a snimka s diska ili s mobitela, jer zbirka zna narasti
+više nego što uređaj ima mjesta. Nestaje i iz srca i iz svih popisa. Natrag se vraća samo
+iznova, poveznicom, pa je okvir za potvrdu i pokaže.
+
+Na računalu briše poslužitelj (`/preuzmi/ukloni`), a na mobitelu se briše iz IndexedDB.
+Ondje je se sljedeći uvoz „samo novo” ne vraća, jer računalo zna da ju je uređaj već
+dobio; vraća je tek uvoz cijele zbirke.
 
 ### Dodavanje pjesme iz samoga Lucifyja
 
@@ -213,6 +255,8 @@ po adresi.
 | `src/glazba-svirac.mjs` | zvuk, red čekanja, glasnoća, ponavljanje, mjerač vremena |
 | `src/GlazbaDodaj.jsx` | okvir za dodavanje pjesme poveznicom |
 | `src/glazba-veze.mjs` | čitanje YouTube poveznica, isto za preglednik i za poslužitelj |
+| `src/glazba-mape.mjs` | hrvatske i sve ostale: pogađanje jezika, isto za oba |
+| `scripts/youtube.mjs` | `npm run youtube`: poveznica i omot po trajanju snimke |
 | `src/GlazbaUvoz.jsx` | okvir „Zbirka”: mapa s računala u zbirku uređaja |
 | `src/glazba-izvor.mjs` | odakle snimka dolazi: poslužitelj ili sam uređaj |
 | `src/glazba-spremiste.mjs` | zbirka u IndexedDB, na objavljenom Lucifyju |
