@@ -4,7 +4,7 @@
   "description": "Vlastita zbirka glazbe i svirač uz nju.",
   "author": "LB",
   "private": true,
-  "version": "1.0.6",
+  "version": "1.0.7",
   "type": "module",
   "main": "electron/glavni.mjs",
   "scripts": {
