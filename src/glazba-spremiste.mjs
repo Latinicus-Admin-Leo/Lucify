@@ -181,6 +181,10 @@ function samoIme(put) {
  * dolaze očišćeni naslovi, izvođači i police. Bez njega bi ostala samo imena
  * datoteka.
  *
+ * Vlastite popise s računala (`liste.json`) uvoz samo pročita i vrati. Ovdje se
+ * ne spremaju, jer ih drži stranica, u `localStorage`, pa ih ona i spoji s
+ * onima koje uređaj već ima.
+ *
  * @param {File[]} datoteke
  * @param {(n: { gotovo: number, ukupno: number, ime: string }) => void} [naNapredak]
  */
@@ -196,10 +200,29 @@ export async function uvezi(datoteke, naNapredak) {
   const poImenu = new Map();
   /** @type {File | null} */
   let popisF = null;
+  /** @type {File | null} */
+  let listeF = null;
   for (const f of odabrane) {
     const ime = samoIme(f.name);
     if (ime.toLowerCase() === "popis.json") popisF = f;
+    else if (ime.toLowerCase() === "liste.json") listeF = f;
     else poImenu.set(ime, f);
+  }
+
+  /** @type {{ id: string, naslov: string, pjesme: string[] }[]} */
+  let liste = [];
+  if (listeF) {
+    try {
+      const procitane = JSON.parse(await listeF.text());
+      if (Array.isArray(procitane)) {
+        liste = procitane.filter(
+          (/** @type {any} */ l) =>
+            l && typeof l.id === "string" && typeof l.naslov === "string" && Array.isArray(l.pjesme),
+        );
+      }
+    } catch {
+      /* Pokvareni popisi nisu razlog da ne stigne glazba. */
+    }
   }
 
   let popis = null;
@@ -281,7 +304,7 @@ export async function uvezi(datoteke, naNapredak) {
   if (naNapredak) naNapredak({ gotovo: ukupno, ukupno, ime: "" });
 
   const imam = await oznakeSnimaka();
-  return { doneseno, preskoceno, greske, uZbirci: imam.size, uPopisu: ukupno };
+  return { doneseno, preskoceno, greske, uZbirci: imam.size, uPopisu: ukupno, liste };
 }
 
 /* ---------- višak ---------- */

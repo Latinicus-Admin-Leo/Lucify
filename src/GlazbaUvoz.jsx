@@ -24,7 +24,7 @@ import { jezikStanje, pjesama, prevoditelj, recenicaViska } from "./jezik.mjs";
  * Uvozi se **jednom**, i onda više nikad: poslije toga Lucify radi bez mreže i
  * bez upaljenog računala.
  *
- * @param {{ naZatvori: () => void, naUvezeno: () => void }} props
+ * @param {{ naZatvori: () => void, naUvezeno: (ishod?: any) => void }} props
  */
 export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
   const jezik = useSyncExternalStore(jezikStanje.prati, jezikStanje.stanje, jezikStanje.stanje);
@@ -98,7 +98,7 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
       zatvoriOmote();
       setIshod(r);
       await osvjezi();
-      naUvezeno();
+      naUvezeno(r);
     } catch (g) {
       setGreska((g && g.message) || t("Uvoz nije uspio."));
     } finally {
@@ -284,6 +284,9 @@ export default function GlazbaUvoz({ naZatvori, naUvezeno }) {
                 ? (jezik === "en" ? "Brought in " : "Doneseno ") + ishod.doneseno + " " + pjesama(ishod.doneseno, jezik)
                 : t("Nije doneseno ništa novo")}
               {ishod.preskoceno ? ", " + ishod.preskoceno + (jezik === "en" ? " already here" : " već bilo ovdje") : ""}
+              {ishod.liste && ishod.liste.length
+                ? (jezik === "en" ? "; playlists from the computer: " : "; popisa s računala: ") + ishod.liste.length
+                : ""}
             </p>
             {ishod.greske.length ? (
               <div className="gdodbijene">

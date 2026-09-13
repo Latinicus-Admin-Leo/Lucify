@@ -39,6 +39,7 @@ import {
 import * as svirac from "./glazba-svirac.mjs";
 import { KORIJEN, mmss, odbroj } from "./glazba-svirac.mjs";
 import { ANDROID, NA_UREDAJU, omotAdresa, ukloniPjesmu, zbirkaUredaja } from "./glazba-izvor.mjs";
+import { spojiListe } from "./glazba-liste.mjs";
 import { odrediJezike } from "./glazba-mape.mjs";
 import { adresaSnimke } from "./glazba-veze.mjs";
 import Znak from "./Znak.jsx";
@@ -1063,11 +1064,21 @@ export default function Glazba() {
   ) : null;
 
   /* Uvoz mijenja zbirku pod rukom, pa se po njegovu zatvaranju popis čita
-     iznova, isto kao poslije preuzimanja. */
+     iznova, isto kao poslije preuzimanja. S datotekom s računala stignu i
+     vlastiti popisi, a njih drži ova stranica, pa se ovdje i spajaju. */
   const okvirUvoz =
     NA_UREDAJU && uvozOtvoren ? (
       <Suspense fallback={null}>
-        <Uvoz naZatvori={() => setUvozOtvoren(false)} naUvezeno={ucitajPopis} />
+        <Uvoz
+          naZatvori={() => setUvozOtvoren(false)}
+          naUvezeno={(/** @type {any} */ r) => {
+            const stigle = ((r && r.liste) || []).filter(
+              (/** @type {any} */ l) => !String(l.id).startsWith(SIJANI_POPIS),
+            );
+            if (stigle.length) setListe((l) => spojiListe(l, stigle));
+            ucitajPopis();
+          }}
+        />
       </Suspense>
     ) : null;
 

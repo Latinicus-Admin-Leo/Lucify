@@ -373,13 +373,20 @@ function zapisiZapis(korijen, poslano) {
  * samo trošilo vrijeme. Zbog toga ni raspakiravanje na mobitelu ništa ne
  * prepisuje — snimka se čita ravno iz arhive, s mjesta na kojem leži.
  *
+ * Uz pjesme mogu ići i **vlastiti popisi**, u `liste.json`. Njih računalo ne
+ * zna samo od sebe, jer stoje u `localStorage` stranice, pa ih pozivatelj
+ * donese. Izvoz jednoga popisa suzi i pjesme (`samo`) na ono što je u njemu;
+ * `sve` tada znači cijeli taj popis, a ne cijelu zbirku.
+ *
  * @param {object} o
  * @param {string} o.korijen mapa u kojoj stoji `Glazba/Zvuk`
  * @param {string} o.kamo put do datoteke koja će nastati
- * @param {boolean} [o.sve] ne gledaj zapis, iznesi cijelu zbirku
+ * @param {boolean} [o.sve] ne gledaj zapis, iznesi sve (iz zbirke ili iz `samo`)
+ * @param {Iterable<string>} [o.samo] samo ove pjesme, po oznaci
+ * @param {{ id: string, naslov: string, pjesme: string[] }[]} [o.liste] popisi koji putuju uz pjesme
  * @param {(n: { gotovo: number, ukupno: number, ime: string, greska?: boolean }) => void} [o.naNapredak]
  */
-export async function izveziZip({ korijen, kamo, sve = false, naNapredak }) {
+export async function izveziZip({ korijen, kamo, sve = false, samo, liste, naNapredak }) {
   const { zbirka, popisPut } = putovi(korijen);
 
   if (!existsSync(popisPut)) {
@@ -429,8 +436,11 @@ export async function izveziZip({ korijen, kamo, sve = false, naNapredak }) {
     redom.push({ p, ulaz, omot, ime: jedinstveno(zauzeta, osnova), vrijeme });
   }
 
-  const poslano = sve ? {} : procitajZapis(korijen);
-  const putuju = redom.filter((s) => !(poslano[s.p.id] >= s.vrijeme));
+  const suzeno = samo ? new Set(samo) : null;
+  const trazene = suzeno ? redom.filter((s) => suzeno.has(s.p.id)) : redom;
+  const zapis = procitajZapis(korijen);
+  const poslano = sve ? {} : zapis;
+  const putuju = trazene.filter((s) => !(poslano[s.p.id] >= s.vrijeme));
 
   /* Popis kakav ide uz izvoz: cijela zbirka, ali s imenima datoteka iz arhive.
      Pjesma kojoj snimke nema u njemu ne stoji, jer je ni uvoz ne bi našao. */
@@ -446,8 +456,16 @@ export async function izveziZip({ korijen, kamo, sve = false, naNapredak }) {
   const radna = mkdtempSync(join(tmpdir(), "lucify-izvoz-"));
   const privremena = join(radna, "snimka.mp3");
   const z = zipPisac(kamo);
+  /* Popis nosi samo pjesme koje uvoz može naći; ostale bi na uređaju ionako
+     bile skrivene. Prazan ne putuje. */
+  const listeUz = (liste || [])
+    .map((l) => ({ id: l.id, naslov: l.naslov, pjesme: (l.pjesme || []).filter((id) => izvezeni.has(id)) }))
+    .filter((l) => l.id && l.naslov && l.pjesme.length);
+
+  /* Cijela zbirka iznova znači i zapis iznova. Jedan popis iznova ne smije
+     izbrisati zapis o svemu ostalom što je već otišlo. */
   /** @type {Record<string, number>} */
-  const novoPoslano = { ...(sve ? {} : poslano) };
+  const novoPoslano = { ...(sve && !suzeno ? {} : zapis) };
   /** @type {Set<string>} */
   const omotiUArhivi = new Set();
   let bajtova = 0;
@@ -459,6 +477,9 @@ export async function izveziZip({ korijen, kamo, sve = false, naNapredak }) {
       "popis.json",
       Buffer.from(JSON.stringify({ ...popis, pjesme: izvezene, police }, null, 1), "utf8"),
     );
+    if (listeUz.length) {
+      await z.dodaj("liste.json", Buffer.from(JSON.stringify(listeUz, null, 1), "utf8"));
+    }
 
     for (const [i, s] of putuju.entries()) {
       if (naNapredak) naNapredak({ gotovo: i, ukupno: putuju.length, ime: s.ime });
@@ -494,9 +515,10 @@ export async function izveziZip({ korijen, kamo, sve = false, naNapredak }) {
     zapisiZapis(korijen, novoPoslano);
     return {
       kamo,
-      ukupno: redom.length,
+      ukupno: trazene.length,
       napisano,
-      preskoceno: redom.length - putuju.length,
+      preskoceno: trazene.length - putuju.length,
+      popisa: listeUz.length,
       bajtova,
       arhiva: kraj.bajtova,
       sOmotom,

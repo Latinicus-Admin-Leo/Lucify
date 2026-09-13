@@ -1,12 +1,13 @@
 /*
- * Ikone iz znaka: `public/lucify.svg` → `build/icon.png` za namjenski program,
+ * Ikone iz znaka: `public/lucify.svg` → `build/icon.png` i `build/icon.ico` za namjenski program,
  * i `public/lucify-*.png` za prečac koji objavljeni Lucify ostavlja na početnom
  * zaslonu.
  *
  * Pokreće se Electronom (`npm run ikona`), a ne Nodeom, zato što PNG treba
  * netko tko zna nacrtati SVG, a Electron to već ima uza se. Time projekt ne
  * dobiva još jednu ovisnost samo zbog jedne slike koja se mijenja jednom
- * godišnje. Graditelj iz te jedne datoteke sam složi sve mjere za `.ico`.
+ * godišnje. `.ico` se slaže ovdje, a ne u graditelju, jer graditelj mjere
+ * za nj stišće iz jednoga PNG-a, a baš to stiskanje nazubi sitne mjere.
  */
 
 import { app, BrowserWindow } from "electron";
@@ -43,6 +44,17 @@ const MJERE = [
   { mjera: 512, pun: 1, kamo: path.join("public", "lucify-512.png") },
   { mjera: 512, pun: 0.73, kamo: path.join("public", "lucify-maska.png") },
 ];
+
+/**
+ * Mjere u `build/icon.ico`, za Windows.
+ *
+ * Prozor je dosad dobivao `icon.png` od 1024 točke, a Windows ga za traku
+ * zadataka sam stisne na 32 ili 40 točaka, i to grubo, pa su tanki lukovi
+ * ispadali nazubljeni. U `.ico` svaka mjera stoji zasebno i crta se iz SVG-a
+ * ravno na svoju veličinu, pa sustav samo uzme onu koju treba. Tu su i mjere
+ * za uvećanja zaslona od 125 i 150 %: 20, 24, 40 i 48.
+ */
+const MJERE_ICO = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256];
 
 /* `app.whenReady()` se ovdje **ne smije** čekati vrhovnim `await`-om: Electron
    događaj „ready” javlja tek kad se ulazni modul do kraja izvrši, pa bi se
@@ -81,9 +93,10 @@ async function napravi() {
           c.drawImage(slika, o, o, w, w);
           return platno.toDataURL("image/png").split(",")[1];
         };
-        vrati(${JSON.stringify(
-          MJERE.map((m) => ({ mjera: m.mjera, pun: m.pun })),
-        )}.map((m) => nacrtaj(m.mjera, m.pun)));
+        vrati(${JSON.stringify([
+          ...MJERE.map((m) => ({ mjera: m.mjera, pun: m.pun })),
+          ...MJERE_ICO.map((mjera) => ({ mjera, pun: 1 })),
+        ])}.map((m) => nacrtaj(m.mjera, m.pun)));
       };
       slika.onerror = () => pukni(new Error("znak se ne da nacrtati"));
       slika.src = "data:image/svg+xml;base64," + ${JSON.stringify(
@@ -99,7 +112,41 @@ async function napravi() {
     writeFileSync(kamo, Buffer.from(base64[i], "base64"));
     console.log("ikona: " + m.kamo + " (" + m.mjera + " × " + m.mjera + ")");
   });
+
+  const ico = path.join("build", "icon.ico");
+  writeFileSync(
+    path.join(korijen, ico),
+    slozIco(MJERE_ICO.map((mjera, i) => ({ mjera, png: Buffer.from(base64[MJERE.length + i], "base64") }))),
+  );
+  console.log("ikona: " + ico + " (" + MJERE_ICO.join(", ") + ")");
   app.exit(0);
+}
+
+/**
+ * `.ico` od gotovih PNG-ova: zaglavlje, pa po jedan redak za svaku mjeru, pa
+ * same slike. Windows od Viste nadalje u `.ico` prima PNG izravno, pa se ništa
+ * ne pretvara u bitmapu.
+ *
+ * @param {{ mjera: number, png: Buffer }[]} slike
+ */
+function slozIco(slike) {
+  const glava = Buffer.alloc(6 + 16 * slike.length);
+  glava.writeUInt16LE(0, 0);
+  glava.writeUInt16LE(1, 2);
+  glava.writeUInt16LE(slike.length, 4);
+  let pomak = glava.length;
+  slike.forEach(({ mjera, png }, i) => {
+    const r = 6 + 16 * i;
+    /* 256 se u jedan bajt ne da upisati, pa ga oblik bilježi kao 0. */
+    glava.writeUInt8(mjera >= 256 ? 0 : mjera, r);
+    glava.writeUInt8(mjera >= 256 ? 0 : mjera, r + 1);
+    glava.writeUInt16LE(1, r + 4);
+    glava.writeUInt16LE(32, r + 6);
+    glava.writeUInt32LE(png.length, r + 8);
+    glava.writeUInt32LE(pomak, r + 12);
+    pomak += png.length;
+  });
+  return Buffer.concat([glava, ...slike.map((s) => s.png)]);
 }
 
 /** @param {unknown} greska */

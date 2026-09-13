@@ -82,6 +82,7 @@
       "src/glazba-greske.mjs",
       "alati/**",
       "build/icon.png",
+      "build/icon.ico",
       "package.json",
       "!node_modules/react/**",
       "!node_modules/react-dom/**",
@@ -93,7 +94,7 @@
       "alati/**"
     ],
     "win": {
-      "icon": "build/icon.png",
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "portable"

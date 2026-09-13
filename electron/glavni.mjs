@@ -280,7 +280,9 @@ async function otvori() {
     minHeight: 560,
     backgroundColor: "#0a0a0b",
     title: "Lucify",
-    icon: path.join(korijenPrograma, "build", "icon.png"),
+    /* Na Windowsima `.ico`, jer u njemu svaka mjera stoji gotova: PNG od 1024
+       točke sustav sam stisne za traku zadataka, i to nazubljeno. */
+    icon: path.join(korijenPrograma, "build", process.platform === "win32" ? "icon.ico" : "icon.png"),
     /* Gumbe prozora (—, ▢, ✕) i dalje crta Windows, ali preko same stranice i
        u njezinim bojama, pa gornja traka Lucifyja ide sve do vrha: iznad nje
        više nema ni sustavske naslovne trake ni retka s jelovnikom. Traka se
@@ -326,7 +328,13 @@ async function otvori() {
   /* Druga polovica gornjega: `loadURL` čeka upravo kraj učitavanja, pa se
      prozor koji se pokaže ovdje ne vidi nedovršen. */
   pokazi();
+  zbirkaSada = zbirka;
   slozJelovnik(zbirka);
+  await osvjeziJelovnik();
+  /* Jelovnik pod Altom ne ide kroz `otvoriJelovnik`, pa se osvježi ovdje. */
+  prozor.on("focus", () => {
+    osvjeziJelovnik().catch(() => {});
+  });
 }
 
 /** Je li izvoz u tijeku: dva odjednom pisala bi u istu mapu. */
@@ -409,15 +417,35 @@ async function izvozZaMobitel(zbirka) {
  * cijele zbirke — a s manje toga na uređaj i manje ostane ležati pokraj
  * Lucifyjeve zbirke, koju uvoz svejedno puni.
  *
- * @param {string} zbirka @param {boolean} [sve] iznesi cijelu zbirku, bez obzira na zapis
+ * S datotekom putuju i vlastiti popisi, pa ih uvoz na mobitelu doda. Izvoz može
+ * biti i samo iz popisa: iz svih ili iz jednoga, i tada nosi samo njihove
+ * pjesme i samo njih.
+ *
+ * @param {string} zbirka
+ * @param {boolean} [sve] ne gledaj zapis: cijela zbirka, ili cijeli odabrani popisi
+ * @param {string | null} [popis] `null` za cijelu zbirku, `SVI_POPISI`, ili oznaka jednoga popisa
  */
-async function izvozUDatoteku(zbirka, sve = false) {
+async function izvozUDatoteku(zbirka, sve = false, popis = null) {
   if (izvozTece || !prozor) return;
 
+  /* Popisi se čitaju tek sada, a ne pri slaganju jelovnika: od onda je koji
+     mogao nestati ili narasti. */
+  const liste = await procitajListe();
+  const jedan = popis && popis !== SVI_POPISI ? liste.find((l) => l.id === popis) : null;
+  if (popis && popis !== SVI_POPISI && !jedan) return;
+  const odabrane = jedan ? [jedan] : liste;
+  const samo = popis ? odabrane.flatMap((l) => l.pjesme) : undefined;
+
+  const sto = jedan
+    ? "popis „" + jedan.naslov + "”"
+    : popis
+      ? sve ? "sve pjesme iz popisa" : "nove pjesme iz popisa"
+      : sve ? "cijelu zbirku" : "izvoz za mobitel";
   const danas = new Date().toISOString().slice(0, 10);
+  const uImenu = jedan ? cistoIme(jedan.naslov) + " " : popis ? "popisi " : "";
   const izbor = await dialog.showSaveDialog(prozor, {
-    title: sve ? "Kamo spremiti cijelu zbirku" : "Kamo spremiti izvoz za mobitel",
-    defaultPath: path.join(app.getPath("music"), "Lucify za mobitel " + danas + ".zip"),
+    title: "Kamo spremiti " + sto,
+    defaultPath: path.join(app.getPath("music"), "Lucify za mobitel " + uImenu + danas + ".zip"),
     buttonLabel: "Izvezi",
     filters: [{ name: "Arhiva", extensions: ["zip"] }],
   });
@@ -433,6 +461,8 @@ async function izvozUDatoteku(zbirka, sve = false) {
       korijen: zbirka,
       kamo,
       sve,
+      samo,
+      liste: odabrane,
       naNapredak: (n) => {
         if (prozor) prozor.setProgressBar(n.ukupno ? n.gotovo / n.ukupno : 1);
       },
@@ -440,13 +470,14 @@ async function izvozUDatoteku(zbirka, sve = false) {
     if (prozor) prozor.setProgressBar(-1);
 
     /* Bez ijedne nove pjesme datoteka nije uzalud — u njoj je osvježen popis,
-       pa na uređaj odu nove police i ispravljeni naslovi — ali čovjeku koji je
-       htio prenijeti glazbu to treba reći, i ponuditi ono što je vjerojatno
-       htio. */
+       pa na uređaj odu nove police, ispravljeni naslovi i vlastiti popisi — ali
+       čovjeku koji je htio prenijeti glazbu to treba reći, i ponuditi ono što
+       je vjerojatno htio. Ako je htio baš sve, nema se što ponuditi. */
     const nista = !r.napisano;
+    const ponudi = nista && !sve;
     const mb = Math.round(r.arhiva / (1024 * 1024));
-    const gumbi = nista
-      ? ["Izvezi cijelu zbirku", "Pokaži datoteku", "U redu"]
+    const gumbi = ponudi
+      ? [jedan ? "Izvezi cijeli popis" : popis ? "Izvezi sve pjesme iz popisa" : "Izvezi cijelu zbirku", "Pokaži datoteku", "U redu"]
       : ["Pokaži datoteku", "U redu"];
     const odgovor = await dialog.showMessageBox(prozor, {
       type: r.greske.length ? "warning" : "info",
@@ -456,18 +487,19 @@ async function izvozUDatoteku(zbirka, sve = false) {
       detail:
         (nista
           ? "Datoteka je svejedno složena i u njoj je osvježen popis, pa na uređaj " +
-            "odu nove police i ispravljeni naslovi.\n\n"
+            "odu nove police, ispravljeni naslovi i vlastiti popisi.\n\n"
           : r.preskoceno
             ? "Ostalo mobitel već ima, pa nije ni pisano.\n\n"
             : "") +
+        (r.popisa ? "Vlastitih popisa u datoteci: " + r.popisa + ".\n\n" : "") +
         "Prenesi datoteku na mobitel, pa ondje u Lucifyju: Zbirka → Odaberi datoteku." +
         (r.greske.length ? "\n\nNije izašlo: " + r.greske.length + "." : ""),
       buttons: gumbi,
       defaultId: 0,
       cancelId: gumbi.length - 1,
     });
-    if (nista && odgovor.response === 0) ponovi = true;
-    else if (odgovor.response === (nista ? 1 : 0)) shell.showItemInFolder(kamo);
+    if (ponudi && odgovor.response === 0) ponovi = true;
+    else if (odgovor.response === (ponudi ? 1 : 0)) shell.showItemInFolder(kamo);
   } catch (greska) {
     if (prozor) prozor.setProgressBar(-1);
     await dialog.showMessageBox(prozor, {
@@ -479,7 +511,60 @@ async function izvozUDatoteku(zbirka, sve = false) {
     izvozTece = false;
   }
 
-  if (ponovi) await izvozUDatoteku(zbirka, true);
+  if (ponovi) await izvozUDatoteku(zbirka, true, popis);
+}
+
+/** Oznaka za „svi vlastiti popisi”. Popisi sami nose oznake `lista-…`, pa se ne sudaraju. */
+const SVI_POPISI = "sve";
+
+/** Ključ pod kojim stranica drži vlastite popise; isti kao u `src/Glazba.jsx`. */
+const KLJUC_LISTE = "lucijanka.glazba.liste";
+
+/**
+ * Vlastiti popisi, onakvi kakve stranica sada ima.
+ *
+ * Stoje u `localStorage` stranice, a ne na disku uz zbirku, pa ih se pita
+ * prozor. Popisi koje je Lucify nekad sam složio iz mapa (`lista-mapa-…`)
+ * stranica pri otvaranju izbaci, pa se ne nude ni ovdje.
+ *
+ * @returns {Promise<{ id: string, naslov: string, pjesme: string[] }[]>}
+ */
+async function procitajListe() {
+  if (!prozor) return [];
+  try {
+    const niz = await prozor.webContents.executeJavaScript(
+      "localStorage.getItem(" + JSON.stringify(KLJUC_LISTE) + ")",
+    );
+    const liste = JSON.parse(niz || "[]");
+    if (!Array.isArray(liste)) return [];
+    return liste.filter(
+      (l) =>
+        l &&
+        typeof l.id === "string" &&
+        !l.id.startsWith("lista-mapa-") &&
+        typeof l.naslov === "string" &&
+        Array.isArray(l.pjesme),
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** Naslov popisa kao dio imena datoteke: bez znakova koje Windows u imenu ne pušta. @param {string} naslov */
+function cistoIme(naslov) {
+  return naslov.replace(/[<>:"/\\|?* -]/g, "").trim();
+}
+
+/** Mapa zbirke ovoga pokretanja, da se jelovnik može složiti iznova. */
+let zbirkaSada = "";
+
+/**
+ * Jelovnik iznova, s popisima kakvi su sada. Popisi nastaju i nestaju dok je
+ * Lucify otvoren, a jelovnik je složen jednom, pa se osvježava prije svakoga
+ * otvaranja tipkom i kad se prozor vrati u prvi plan.
+ */
+async function osvjeziJelovnik() {
+  if (zbirkaSada) slozJelovnik(zbirkaSada, await procitajListe());
 }
 
 /**
@@ -491,7 +576,13 @@ async function izvozUDatoteku(zbirka, sve = false) {
  * poslužitelj. Node joj ni zbog ovoga nije trebalo otvoriti.
  */
 function otvoriJelovnik() {
-  if (jelovnik && prozor) jelovnik.popup({ window: prozor });
+  osvjeziJelovnik()
+    .catch(() => {
+      /* stari jelovnik je bolji nego nikakav */
+    })
+    .then(() => {
+      if (jelovnik && prozor) jelovnik.popup({ window: prozor });
+    });
 }
 
 /**
@@ -502,8 +593,11 @@ function otvoriJelovnik() {
  * iskočiti i pod tipkom u traci.
  *
  * @param {string} zbirka
+ * @param {{ id: string, naslov: string, pjesme: string[] }[]} [liste] vlastiti popisi, za izvoz po popisu
  */
-function slozJelovnik(zbirka) {
+function slozJelovnik(zbirka, liste = []) {
+  /* `&` je u jelovniku na Windowsima znak za prečac, pa se udvostruči. */
+  const oznaka = (/** @type {string} */ naslov) => naslov.replace(/&/g, "&&");
   jelovnik = Menu.buildFromTemplate([
     {
       label: "Lucify",
@@ -542,6 +636,27 @@ function slozJelovnik(zbirka) {
             {
               label: "U jednu datoteku, cijela zbirka…",
               click: () => izvozUDatoteku(zbirka, true),
+            },
+            { type: "separator" },
+            {
+              label: "Popisi",
+              submenu: liste.length
+                ? [
+                    {
+                      label: "Svi popisi, samo novo…",
+                      click: () => izvozUDatoteku(zbirka, false, SVI_POPISI),
+                    },
+                    {
+                      label: "Svi popisi, sve pjesme…",
+                      click: () => izvozUDatoteku(zbirka, true, SVI_POPISI),
+                    },
+                    { type: "separator" },
+                    ...liste.map((l) => ({
+                      label: oznaka(l.naslov) + " (" + l.pjesme.length + ")…",
+                      click: () => izvozUDatoteku(zbirka, false, l.id),
+                    })),
+                  ]
+                : [{ label: "Još nema vlastitih popisa", enabled: false }],
             },
             { type: "separator" },
             {

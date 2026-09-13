@@ -218,6 +218,13 @@ vrijeme; ovako snimka u njoj leži kao neprekinut niz bajtova, a Lucify je na ur
 `Blob.slice()`om, s mjesta na kojem jest, ne prepisujući ni megabajta. Zip koji je čovjek
 složio sam svejedno prolazi, kroz `DecompressionStream`.
 
+S datotekom putuju i **vlastiti popisi**, u `liste.json`, pa ih uvoz na mobitelu doda.
+Izvoz može biti i samo iz popisa: **Izvoz za mobitel → Popisi**, i ondje svi popisi (samo
+novo ili sve pjesme) ili jedan jedini. Tada u datoteci stoje samo pjesme iz njih i samo
+oni. Uvoz i ovdje samo dodaje: popis koji mobitel već ima uzme naslov i pjesme s računala,
+a iza njih ostanu one koje su mu dodane na mobitelu (`src/glazba-liste.mjs`). Srca ne
+putuju; svaki ih uređaj ima svoja.
+
 ### Zbirka na mobitelu, u tuđem sviraču
 
 ```bash
@@ -269,6 +276,7 @@ po adresi.
 | `src/glazba-izvor.mjs` | odakle snimka dolazi: poslužitelj ili sam uređaj |
 | `src/glazba-spremiste.mjs` | zbirka u IndexedDB, na objavljenom Lucifyju |
 | `src/glazba-zip.mjs` | čitanje arhive iz izvoza, bez prepisivanja bajtova |
+| `src/glazba-liste.mjs` | vlastiti popisi s računala, spojeni s onima na uređaju |
 | `src/glazba.css` | sav izgled |
 | `src/Znak.jsx` | znak, ugrađen, za gornju traku |
 | `public/pisma/` | IBM Plex Mono, uz licenciju: pismo ne dolazi s mreže |
@@ -278,7 +286,7 @@ po adresi.
 | `scripts/zip.mjs` | pisanje arhive, bez stiskanja i bez ijedne ovisnosti |
 | `scripts/posluga.mjs` | posluživanje zbirke s `/glazba/`, uz `Range` |
 | `scripts/preuzimac*.mjs` | poslovi preuzimanja, red čekanja, yt-dlp i ffmpeg |
-| `scripts/ikona.mjs` | `npm run ikona`: znak u ikonu programa |
+| `scripts/ikona.mjs` | `npm run ikona`: znak u ikonu programa, i `.ico` sa svim mjerama za Windows |
 | `scripts/alati.mjs` | `npm run alati`: yt-dlp u `alati/`, uz build |
 | `scripts/potpisivac.mjs` | `npm run potpisivac`: winCodeSign bez `-snld` |
 | `pokreni.cmd` | dvoklik na praznom računalu: zove `scripts/pokreni.ps1` |
@@ -428,6 +436,10 @@ Srca, vlastiti popisi, glasnoća i zadnja pjesma stoje u `localStorage`, pod
 
 Pamte se **po adresi**, pa su ovdje (`localhost:5176`) odvojeni od onih u Lucijankici
 (`localhost:5174`): srca i popisi složeni ondje ne vide se ovdje, i obrnuto.
+
+Adresa uključuje i luku, pa namjenska aplikacija sluša uvijek na istoj, `127.0.0.1:47831`.
+Do 1.0.6 luku je birao sustav, i svako je pokretanje bilo nova adresa, bez srca i popisa.
+Samo kad je ta luka zauzeta, uzme se bilo koja slobodna, pa se to pokretanje ne pamti.
 
 ## Namjenska aplikacija
 
