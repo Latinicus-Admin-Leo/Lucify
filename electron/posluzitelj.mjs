@@ -7,8 +7,7 @@
  * svaka bi se skočena sekunda preuzela iznova. Uz to `fetch` na `file://` ne
  * radi, a upravo njime Lucify dohvaća popis.
  *
- * Sluša samo na `127.0.0.1`, i to na luci koju mu dodijeli sustav: aplikacija
- * ne otvara ništa prema mreži.
+ * Sluša samo na `127.0.0.1`: aplikacija ne otvara ništa prema mreži.
  */
 
 import http from "node:http";
@@ -64,18 +63,36 @@ export function pokreniPosluzitelj({ dist, zbirka, jelovnik }) {
   });
 
   return new Promise((vrati, odbij) => {
-    posluzitelj.on("error", odbij);
-    /* Luka 0 znači „daj bilo koju slobodnu”: tako se dva otvorena Lucifyja ne
-       sudaraju, a ni s bilo čime drugim na računalu. */
-    posluzitelj.listen(0, "127.0.0.1", () => {
-      const na = /** @type {any} */ (posluzitelj.address());
-      vrati({
-        adresa: "http://127.0.0.1:" + na.port + "/",
-        zatvori: () => posluzitelj.close(),
+    const slusaj = (/** @type {number} */ luka) => {
+      posluzitelj.once("error", (/** @type {any} */ greska) => {
+        /* Stalna je luka zauzeta: bolje bilo koja slobodna, pa ovaj put bez
+           srca i popisa, nego Lucify koji se ne da otvoriti. */
+        if (luka !== 0 && greska && greska.code === "EADDRINUSE") slusaj(0);
+        else odbij(greska);
       });
-    });
+      posluzitelj.listen(luka, "127.0.0.1", () => {
+        const na = /** @type {any} */ (posluzitelj.address());
+        vrati({
+          adresa: "http://127.0.0.1:" + na.port + "/",
+          zatvori: () => posluzitelj.close(),
+        });
+      });
+    };
+    slusaj(STALNA_LUKA);
   });
 }
+
+/**
+ * Luka na kojoj poslužitelj sluša, i to uvijek ista.
+ *
+ * Prije je bila 0, „daj bilo koju slobodnu”, a to je tiho brisalo sve što
+ * stranica pamti: `localStorage` pripada adresi **s lukom**, pa je svako
+ * pokretanje bilo nova stranica, bez srca, bez vlastitih popisa i bez zadnje
+ * pjesme. Dva Lucifyja se ionako ne otvaraju (vidi `requestSingleInstanceLock`
+ * u `glavni.mjs`), pa stalna luka nema s kim se sudariti osim s tuđim
+ * programom, a za to je gore rezerva.
+ */
+const STALNA_LUKA = 47831;
 
 /**
  * Datoteka iz `dist/`. Sve što ne postoji vraća se kao `index.html`, jer je
