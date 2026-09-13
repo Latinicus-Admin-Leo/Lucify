@@ -5,7 +5,7 @@ import pluginReactHooks from "eslint-plugin-react-hooks";
 import pluginUnusedImports from "eslint-plugin-unused-imports";
 
 export default [
-  { ignores: ["dist/**", "scripts/**", "vite.config.js"] },
+  { ignores: ["dist/**", "dist-android/**", "android/**", "scripts/**", "vite.config.js", "capacitor.config.json"] },
   {
     files: ["src/**/*.{js,mjs,cjs,jsx}"],
     ...pluginJs.configs.recommended,

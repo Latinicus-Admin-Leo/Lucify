@@ -1,5 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { existsSync, readFileSync } from "fs";
+import os from "os";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 import { zbirkaNaRazvoju } from "./scripts/posluga.mjs";
@@ -20,6 +22,53 @@ import { preuzimacNaRazvoju } from "./scripts/preuzimac.mjs";
 const podmapa = process.env.LUCIFY_PODMAPA || "/";
 
 /**
+ * Koju zbirku razvojni poslužitelj pokazuje: **istu kao gotov program**.
+ *
+ * Prije je to bila mapa projekta, pa su `localhost` i `.exe` pokazivali dvije
+ * različite zbirke: u projektu je ostalo sto četrdeset i sedam starih pjesama,
+ * a sve što je ušlo kroz program, pa i sve hrvatske, stajalo je samo u
+ * `Glazba/Lucify`. Redom se zato traži isto što traži i program: `LUCIFY_ZBIRKA`,
+ * pa mapa odabrana u programu, pa `Glazba/Lucify`, i tek ako ničega od toga
+ * nema, mapa projekta.
+ *
+ * Kad zbirka nije u projektu, ondje nema ni `alati/` ni `node_modules/`, pa se
+ * yt-dlp i ffmpeg preuzimaču pokažu iz projekta, kroz iste varijable kroz koje
+ * ih pokazuje i program. `public/poveznice.json` se tada ne piše, jer ga
+ * zbirka izvan projekta nema kamo zapisati.
+ */
+function zbirkaZaRazvoj() {
+  const projekt = path.resolve(__dirname);
+  const zbirka = (() => {
+    if (process.env.LUCIFY_ZBIRKA) return process.env.LUCIFY_ZBIRKA;
+    const podatci = process.env.APPDATA || path.join(os.homedir(), ".config");
+    try {
+      const odabrano = JSON.parse(
+        readFileSync(path.join(podatci, "Lucify", "postavke.json"), "utf8"),
+      ).zbirka;
+      if (odabrano && existsSync(odabrano)) return odabrano;
+    } catch {
+      /* program nikad nije mijenjao mapu zbirke */
+    }
+    const glazba = path.join(os.homedir(), "Music", "Lucify");
+    if (existsSync(path.join(glazba, "Glazba", "Zvuk", "popis.json"))) return glazba;
+    return projekt;
+  })();
+
+  if (zbirka !== projekt) {
+    /* yt-dlp uz zbirku ima prednost, kao i u programu: to je onaj koji je
+       osvježen iz „Dodaj pjesmu”, a preuzimač ga ondje nađe i sam. */
+    const uzZbirku = path.join(zbirka, "alati", "yt-dlp.exe");
+    const ytDlp = path.join(projekt, "alati", "yt-dlp.exe");
+    const ffmpeg = path.join(projekt, "node_modules", "ffmpeg-static", "ffmpeg.exe");
+    if (!process.env.YTDLP_PATH && !existsSync(uzZbirku) && existsSync(ytDlp)) {
+      process.env.YTDLP_PATH = ytDlp;
+    }
+    if (!process.env.FFMPEG_PATH && existsSync(ffmpeg)) process.env.FFMPEG_PATH = ffmpeg;
+  }
+  return zbirka;
+}
+
+/**
  * Objavljeni Lucify je **program na mobitelu**, a ne stranica koja se otvara:
  * doda se na početni zaslon, otvara se bez trake preglednika i radi bez mreže,
  * jer mu zbirka stoji na samom uređaju, u IndexedDB.
@@ -32,10 +81,13 @@ const podmapa = process.env.LUCIFY_PODMAPA || "/";
  * pravi poslužitelj, sa zbirkom na disku, pa bi uslužni radnik ondje bio
  * posrednik između programa i njegovih vlastitih datoteka.
  *
+ * Ni aplikacija za Android: ona je već instalirana i nosi stranicu u sebi, pa bi
+ * uslužni radnik ondje samo držao staru inačicu i poslije nadogradnje.
+ *
  * @param {string} mode
  */
 function pwa(mode) {
-  if (mode === "namjenska") return [];
+  if (mode === "namjenska" || mode === "android") return [];
   return [
     VitePWA({
       /* Nova inačica se uzima sama, bez pitanja: Lucify je jedna stranica bez
@@ -81,6 +133,8 @@ function pwa(mode) {
   ];
 }
 
+const zbirka = zbirkaZaRazvoj();
+
 export default defineConfig(({ mode }) => ({
   base: podmapa,
   /* Oba dodatka žive samo na `npm run dev`, a mapa projekta im se predaje
@@ -93,12 +147,9 @@ export default defineConfig(({ mode }) => ({
      postojati u dva primjerka. */
   plugins: [
     react(),
-    /* `LUCIFY_ZBIRKA` znači isto što i u namjenskoj aplikaciji: gdje stoji
-       zbirka. Bez njega je to mapa projekta, kao i dosad. Time se razvojni
-       poslužitelj dade okrenuti na pravu zbirku — onu koju gotov program drži
-       u `Glazba/Lucify` — a da se ništa ne prepisuje i ne seli. */
-    zbirkaNaRazvoju(process.env.LUCIFY_ZBIRKA || path.resolve(__dirname)),
-    preuzimacNaRazvoju(process.env.LUCIFY_ZBIRKA || path.resolve(__dirname)),
+    /* Ista zbirka kao u gotovom programu, vidi `zbirkaZaRazvoj()`. */
+    zbirkaNaRazvoju(zbirka),
+    preuzimacNaRazvoju(zbirka),
     ...pwa(mode),
   ],
   resolve: {

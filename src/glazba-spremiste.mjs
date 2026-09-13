@@ -19,6 +19,8 @@
  * ono što je traženo: svaki uređaj nosi svoju zbirku, i ne ovisi ni o čemu.
  */
 
+import { odrediJezike } from "./glazba-mape.mjs";
+import { police } from "./glazba-naslovi.mjs";
 import { jeArhiva, raspakiraj } from "./glazba-zip.mjs";
 
 const BAZA = "lucify.zbirka";
@@ -217,6 +219,16 @@ export async function uvezi(datoteke, naNapredak) {
     );
   }
 
+  /* Pjesme preuzete na samom mobitelu u popisu s računala ne stoje, jer ih
+     računalo nikad nije ni vidjelo. Bez ovoga bi ih svaki uvoz sakrio, a
+     „Počisti” zatim i obrisao. Čim ista pjesma stigne i s računala, vrijedi
+     njezin redak iz uvoza. */
+  const stari = popisF ? await dajPopis() : null;
+  const uNovom = new Set(popis.pjesme.map((/** @type {any} */ p) => String(p.id)));
+  const svoje = ((stari && stari.pjesme) || []).filter(
+    (/** @type {any} */ p) => p.naUredaju && !uNovom.has(String(p.id)),
+  );
+
   const vecTu = await oznakeSnimaka();
   const ukupno = popis.pjesme.length;
   let doneseno = 0;
@@ -259,6 +271,12 @@ export async function uvezi(datoteke, naNapredak) {
     }
   }
 
+  if (svoje.length) {
+    const pjesme = [...popis.pjesme, ...svoje];
+    odrediJezike(pjesme);
+    pjesme.sort((/** @type {any} */ a, /** @type {any} */ b) => a.naslov.localeCompare(b.naslov, "hr"));
+    popis = { ...popis, pjesme, police: police(pjesme) };
+  }
   await spremiPopis(popis);
   if (naNapredak) naNapredak({ gotovo: ukupno, ukupno, ime: "" });
 
@@ -388,6 +406,52 @@ export async function ukloni(id) {
     });
   }
   return oslobodeno;
+}
+
+/**
+ * Jedna nova pjesma u zbirku uređaja: snimka, omot i redak u popisu.
+ *
+ * Ovamo piše preuzimač na Androidu, koji pjesmu dohvati sam, bez izvoza. Radi
+ * isto što i `dodajUPopis()` u `scripts/glazba-zbirka.mjs`: ostale pjesme
+ * ostaju onakve kakve jesu, a iznova se slažu samo poredak i police. Ono što
+ * je čovjek u staroj pjesmi ispravio ili dopisao ostaje, isto kao ondje.
+ *
+ * Snimka se sprema **prije** popisa. Obrnuto bi popis na trenutak pokazivao
+ * pjesmu koje nema, a ako spremanje padne, i ostao takav.
+ *
+ * @param {{ pjesma: any, snimka: Blob, omot?: Blob | null }} nova
+ * @returns {Promise<any>} pjesma onakva kakva je upisana
+ */
+export async function dodajPjesmu({ pjesma, snimka, omot }) {
+  await zahtjev((await ured(ZVUK, "readwrite")).put(snimka, pjesma.id));
+  if (omot && pjesma.omot) {
+    try {
+      await zahtjev((await ured(OMOTI, "readwrite")).put(omot, pjesma.omot));
+    } catch {
+      /* omot nije vrijedan prekida */
+    }
+  }
+
+  const popis = (await dajPopis()) || { pjesme: [], police: [] };
+  const pjesme = Array.isArray(popis.pjesme) ? popis.pjesme : [];
+  const prije = pjesme.find((/** @type {any} */ x) => x.id === pjesma.id) || {};
+  const upisana = {
+    ...pjesma,
+    naslov: prije.ispravljeno ? prije.naslov : pjesma.naslov,
+    izvodac: prije.ispravljeno ? prije.izvodac : pjesma.izvodac,
+    ...(prije.ispravljeno ? { ispravljeno: true } : {}),
+    razdoblje: prije.razdoblje || pjesma.razdoblje || "",
+    biljeska: prije.biljeska || pjesma.biljeska || "",
+    ...(prije.mapa ? { mapa: prije.mapa } : {}),
+    ...(prije.jezik ? { jezik: prije.jezik } : {}),
+  };
+
+  const ostale = pjesme.filter((/** @type {any} */ x) => x.id !== pjesma.id);
+  ostale.push(upisana);
+  odrediJezike(ostale);
+  ostale.sort((/** @type {any} */ a, /** @type {any} */ b) => a.naslov.localeCompare(b.naslov, "hr"));
+  await spremiPopis({ ...popis, gradeno: new Date().toISOString(), pjesme: ostale, police: police(ostale) });
+  return upisana;
 }
 
 /** Briše cijelu zbirku s ovoga uređaja. Srca i popisi u `localStorage` ostaju. */

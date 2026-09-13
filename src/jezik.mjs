@@ -222,6 +222,13 @@ const EN = {
   "Zalijepi jednu poveznicu ili cijeli popis.": "Paste one link, or a whole list of them.",
   "Preuzimač se ne javlja. On radi samo uz `npm run dev`.":
     "The downloader does not answer. It only runs under `npm run dev`.",
+  "Preuzimač se ne javlja.": "The downloader does not answer.",
+  "Zbirka je prazna, jer je na ovom uređaju još nema.": "The collection is empty, because this device has none yet.",
+  "ili iz same aplikacije YouTube: Dijeli → Lucify.": "or straight from the YouTube app: Share → Lucify.",
+  "Zbirka s računala unosi se tipkom": "A collection from the computer comes in with",
+  "Preuzimač se ne javlja. Zatvori Lucify i otvori ga opet.":
+    "The downloader does not answer. Close Lucify and open it again.",
+  "Preuzimač nije primio posao. Pokušaj opet.": "The downloader did not take the job. Try again.",
   ". Bez toga se ne može preuzimati.": ". Without it, nothing can be downloaded.",
   "Zalijepi poveznicu s YouTubea, jednu ili cijeli popis. Zvuk se preuzme, pretvori u mp3 i odmah uđe u zbirku, pa je nađeš pod":
     "Paste a YouTube link, one or a whole list. The audio is downloaded, turned into mp3 and goes straight into the collection, where you will find it under",

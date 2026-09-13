@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import * as svirac from "./glazba-svirac.mjs";
 import { KORIJEN, mmss, odbroj } from "./glazba-svirac.mjs";
-import { NA_UREDAJU, omotAdresa, ukloniPjesmu, zbirkaUredaja } from "./glazba-izvor.mjs";
+import { ANDROID, NA_UREDAJU, omotAdresa, ukloniPjesmu, zbirkaUredaja } from "./glazba-izvor.mjs";
 import { odrediJezike } from "./glazba-mape.mjs";
 import { adresaSnimke } from "./glazba-veze.mjs";
 import Znak from "./Znak.jsx";
@@ -47,8 +47,9 @@ import "./glazba.css";
 
 /**
  * Okvir za dodavanje pjesme dolazi tek kad zatreba, i samo ondje gdje iza
- * njega stoji preuzimač iz `scripts/preuzimac.mjs`: na razvojnom poslužitelju i
- * u namjenskoj aplikaciji, koja yt-dlp i ffmpeg nosi uza se. Na objavljenoj
+ * njega stoji preuzimač: onaj iz `scripts/preuzimac.mjs` na razvojnom
+ * poslužitelju i u namjenskoj aplikaciji, koja yt-dlp i ffmpeg nosi uza se, i
+ * onaj iz `glazba-preuzimac-android.mjs` u aplikaciji za Android. Na objavljenoj
  * stranici toga nema, ni programa ni mape u koju bi se snimka spremila, pa
  * ondje nema ni tipke.
  */
@@ -64,14 +65,14 @@ if (NAMJENSKA && typeof document !== "undefined") {
 }
 /* Ista provjera kao `NA_UREDAJU`, samo okrenuta, i zato izvedena odande a ne
    napisana drugi put: gdje god ima poslužitelja koji zna preuzeti pjesmu, ima i
-   poslužitelja koji je zna poslužiti. */
-const PREUZIMAC = !NA_UREDAJU;
+   poslužitelja koji je zna poslužiti. Iznimka je aplikacija za Android: ondje
+   poslužitelja nema, a preuzima se svejedno, jer yt-dlp i ffmpeg nosi sama. */
+const PREUZIMAC = !NA_UREDAJU || ANDROID;
 
-/* Namjenska aplikacija za Windows. Sam program ne može stajati uz objavljenu
-   stranicu: instalacija je stotinjak megabajta, a Vercel na besplatnom računu
-   prima najviše sto, pa `izdanje/` nije ni u gitu. Izdanja zato stoje na
-   GitHubu, gdje te granice nema, a odavde vodi samo poveznica. Gradi se s
-   `npm run pakiraj`, a objavljuje kao GitHub Release. */
+/* Namjenska aplikacija za Windows. Sam program ne stoji uz objavljenu stranicu
+   na GitHub Pagesu: instalacija je stotinjak megabajta, pa `izdanje/` nije ni u
+   gitu. Izdanja zato stoje među GitHub Releases, a odavde vodi samo poveznica.
+   Gradi se s `npm run pakiraj`, a objavljuje kao GitHub Release. */
 const IZDANJA = "https://github.com/Latinicus-Admin-Leo/Lucify/releases/latest";
 
 /* Uvoz stoji iza te provjere, a ne samo prikaz, jer Vite i `import.meta.env.DEV`
@@ -117,10 +118,11 @@ const Uvoz = /** @type {any} */ (
    značilo bi izgubiti srca i vlastite popise onima koji ih ondje već imaju. */
 const KLJUC_SRCA = "lucijanka.glazba.srca";
 const KLJUC_LISTE = "lucijanka.glazba.liste";
-/* Mape iz kojih je popis već jednom složen. Bez ovoga bi se obrisan popis
-   vratio sam od sebe pri sljedećem otvaranju, a i uređen bi se vratio na
-   početno stanje. */
-const KLJUC_MAPE = "lucijanka.glazba.mape";
+/* Popisi koje je Lucify nekad sam složio iz imena mape s koje su pjesme ušle
+   (npr. „Auto”). U zbirci stoje samo dvije glavne mape, pa se takvi popisi
+   više ne slažu, a stari se pri otvaranju izbace. Popisi koje je čovjek
+   složio sam imaju drukčiju oznaku i ostaju. */
+const SIJANI_POPIS = "lista-mapa-";
 /* Pjesme koje je čovjek premjestio iz jedne glavne mape u drugu. Pamte se po
    uređaju, kao i srca, a pobjeđuju ono što piše u popisu. */
 const KLJUC_JEZICI = "lucijanka.glazba.jezici";
@@ -456,12 +458,12 @@ export default function Glazba() {
   const [srca, setSrca] = useState(/** @type {() => string[]} */ (() => ucitaj(KLJUC_SRCA, [])));
   const [liste, setListe] = useState(
     /** @type {() => { id: string, naslov: string, pjesme: string[] }[]} */
-    (() => ucitaj(KLJUC_LISTE, [])),
+    (() =>
+      ucitaj(KLJUC_LISTE, []).filter(
+        (/** @type {any} */ l) => !String(l && l.id).startsWith(SIJANI_POPIS),
+      )),
   );
 
-  const [sijaneMape, setSijaneMape] = useState(
-    /** @type {() => string[]} */ (() => ucitaj(KLJUC_MAPE, [])),
-  );
   const [jezici, setJezici] = useState(
     /** @type {() => Record<string, string>} */ (() => ucitaj(KLJUC_JEZICI, {})),
   );
@@ -514,6 +516,8 @@ export default function Glazba() {
   );
   const [zbirkaOtvorena, setZbirkaOtvorena] = useState(false);
   const [dodajOtvoren, setDodajOtvoren] = useState(false);
+  /* Poveznica podijeljena iz YouTubea, na Androidu. Ide u polje okvira. */
+  const [podijeljeno, setPodijeljeno] = useState("");
   const [vezeOtvorene, setVezeOtvorene] = useState(false);
   const [uvozOtvoren, setUvozOtvoren] = useState(false);
   /* Na mobitelu je svirač skupljen u karticu nad donjom trakom, a dodirom se
@@ -559,9 +563,28 @@ export default function Glazba() {
     ucitajPopis();
   }, [ucitajPopis]);
 
+  /* Na Androidu se Lucifyju poveznica dade podijeliti iz YouTubea („Dijeli” →
+     Lucify). Tada se odmah otvori „Dodaj pjesmu”, s poveznicom u polju, pa je
+     ostao samo jedan dodir. Uvoz stoji iza `ANDROID`, pa ga drugdje nema. */
+  useEffect(() => {
+    if (!ANDROID) return undefined;
+    let odjava = () => {};
+    let ziv = true;
+    import("./glazba-preuzimac-android.mjs").then(({ naPodijeljeno }) => {
+      if (!ziv) return;
+      odjava = naPodijeljeno((tekst) => {
+        setPodijeljeno(tekst);
+        setDodajOtvoren(true);
+      });
+    });
+    return () => {
+      ziv = false;
+      odjava();
+    };
+  }, []);
+
   useEffect(() => spremi(KLJUC_SRCA, srca), [srca]);
   useEffect(() => spremi(KLJUC_LISTE, liste), [liste]);
-  useEffect(() => spremi(KLJUC_MAPE, sijaneMape), [sijaneMape]);
   useEffect(() => spremi(KLJUC_JEZICI, jezici), [jezici]);
 
   /* Zeleni obrub fokusa pokazuje se samo onomu tko se kreće tipkom Tab. Prije
@@ -583,33 +606,6 @@ export default function Glazba() {
     };
   }, []);
 
-  /**
-   * Pjesma unesena iz mape nosi ime te mape, a od njega ovdje nastaje popis —
-   * **jednom**, i dalje je čovjekov. Zato se sijanje pamti po imenu mape: tko
-   * popis obriše ili prekroji, ne dobiva ga natrag pri sljedećem otvaranju.
-   * Nove pjesme u istoj mapi zato ne ulaze same; ide ih se dodati rukom, kao i
-   * u svaki drugi popis.
-   */
-  useEffect(() => {
-    const pjesme = (zbirka && zbirka.pjesme) || [];
-    if (!pjesme.length) return;
-    /** @type {Map<string, string[]>} */
-    const poMapi = new Map();
-    for (const p of pjesme) {
-      if (!p.mapa) continue;
-      if (!poMapi.has(p.mapa)) poMapi.set(p.mapa, []);
-      (poMapi.get(p.mapa) || []).push(p.id);
-    }
-    const nove = [...poMapi.entries()].filter(([ime]) => !sijaneMape.includes(ime));
-    if (!nove.length) return;
-    setListe((l) => [
-      ...l,
-      ...nove
-        .filter(([ime]) => !l.some((x) => x.naslov === ime))
-        .map(([ime, ids]) => ({ id: "lista-mapa-" + ime.toLowerCase(), naslov: ime, pjesme: ids })),
-    ]);
-    setSijaneMape((s) => [...s, ...nove.map(([ime]) => ime)]);
-  }, [zbirka, sijaneMape]);
   /* Glasnoća, nasumično i ponavljanje pamte se u samom sviraču, jer se ondje i
      mijenjaju. */
 
@@ -1049,7 +1045,11 @@ export default function Glazba() {
     PREUZIMAC && dodajOtvoren ? (
       <Suspense fallback={null}>
         <Dodaj
-          naZatvori={() => setDodajOtvoren(false)}
+          pocetneVeze={podijeljeno}
+          naZatvori={() => {
+            setDodajOtvoren(false);
+            setPodijeljeno("");
+          }}
           naDodano={ucitajPopis}
           naPusti={(id) => pusti([id], 0, "")}
         />
@@ -1563,6 +1563,21 @@ export default function Glazba() {
                       </p>
                       <p>
                         {t("Najlakše ide poveznicom s YouTubea, tipkom")} <b>{t("Dodaj pjesmu")}</b> gore.
+                      </p>
+                    </>
+                  ) : ANDROID ? (
+                    /* Na Androidu nema ni mape ni `npm` naredbi: pjesma ulazi
+                       poveznicom, dijeljenjem iz YouTubea ili uvozom s računala. */
+                    <>
+                      <p>{t("Zbirka je prazna, jer je na ovom uređaju još nema.")}</p>
+                      <p>
+                        {t("Najlakše ide poveznicom s YouTubea, tipkom")} <b>{t("Dodaj pjesmu")}</b>,{" "}
+                        {t("ili iz same aplikacije YouTube: Dijeli → Lucify.")}
+                      </p>
+                      <p>{t("Zbirka s računala unosi se tipkom")} <b>{t("Zbirka")}</b>.</p>
+                      <p className="gpraznotipke">
+                        {tipkaDodaj()}
+                        {tipkaUvoz()}
                       </p>
                     </>
                   ) : PREUZIMAC ? (

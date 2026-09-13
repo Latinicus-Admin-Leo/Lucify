@@ -1,0 +1,103 @@
+apply plugin: 'com.android.application'
+
+/*
+ * Inačica se čita iz `package.json`, kao i u namjenskoj aplikaciji, pa oznaka
+ * `v1.2.3` na GitHubu, program za Windows i aplikacija za Android uvijek kažu
+ * isto. `versionCode` mora samo rasti, pa se slaže iz triju brojeva.
+ */
+def paket = new groovy.json.JsonSlurper().parse(file('../../package.json'))
+def (glavna, sporedna, zakrpa) = paket.version.tokenize('.').collect { it.replaceAll(/\D.*$/, '') as int }
+
+/*
+ * Potpis za izdanje. Ključ nije u gitu: lokalno stoji u
+ * `android/keystore.properties`, a na GitHubu dolazi iz tajni, kroz varijable
+ * okoline. Bez njega se izdanje složi nepotpisano, a razvojna inačica ionako
+ * nosi svoj ključ.
+ */
+def potpis = new Properties()
+def potpisDatoteka = rootProject.file('keystore.properties')
+if (potpisDatoteka.exists()) potpisDatoteka.withInputStream { potpis.load(it) }
+def kljuc = { String ime, String varijabla -> potpis.getProperty(ime) ?: System.getenv(varijabla) }
+
+android {
+    namespace = "hr.lucify.svirac"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "hr.lucify.svirac"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode glavna * 10000 + sporedna * 100 + zakrpa
+        versionName paket.version
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (kljuc('storeFile', 'LUCIFY_KEYSTORE')) {
+                storeFile file(kljuc('storeFile', 'LUCIFY_KEYSTORE'))
+                storePassword kljuc('storePassword', 'LUCIFY_KEYSTORE_LOZINKA')
+                keyAlias kljuc('keyAlias', 'LUCIFY_KLJUC')
+                keyPassword kljuc('keyPassword', 'LUCIFY_KLJUC_LOZINKA')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (kljuc('storeFile', 'LUCIFY_KEYSTORE')) signingConfig signingConfigs.release
+            /* Python i ffmpeg su za svaki procesor zaseban primjerak od
+               tridesetak megabajta. Mobiteli su danas redom arm64.
+               `-PlucifyAbi=x86_64` složi izdanje za emulator: ondje prevoditelj
+               ARM-a pokrene aplikaciju, ali ne i Python iz nje. */
+            ndk { abiFilters((project.findProperty('lucifyAbi') ?: 'arm64-v8a').toString()) }
+        }
+        debug {
+            /* Uz to i x86_64, za emulator na računalu. */
+            ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        }
+    }
+    /* youtubedl-android pokreće Python i ffmpeg kao programe iz mape s
+       knjižnicama, pa one moraju biti raspakirane na disk, a ne čitane iz APK-a. */
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    /* yt-dlp, Python i ffmpeg za preuzimanje u samom mobitelu. */
+    implementation "io.github.junkfood02.youtubedl-android:library:$youtubedlAndroidVersion"
+    implementation "io.github.junkfood02.youtubedl-android:ffmpeg:$youtubedlAndroidVersion"
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

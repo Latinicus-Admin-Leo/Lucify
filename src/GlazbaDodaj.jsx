@@ -1,28 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Play, X } from "lucide-react";
 import { jezikStanje, prevoditelj } from "./jezik.mjs";
+import { dajPreuzimac } from "./glazba-preuzimac.mjs";
 import { procitajVeze } from "./glazba-veze.mjs";
 
 /**
  * Okvir „Dodaj pjesmu”: iz poveznice s YouTubea ravno u zbirku.
  *
- * Sav posao radi preuzimač u `scripts/preuzimac.mjs`, koji stoji samo na
- * razvojnom poslužitelju. Zato se ovaj okvir i otvara samo ondje: na objavljenoj
- * stranici nema ni yt-dlpa, ni ffmpega, ni mape u koju bi se spremilo.
+ * Sav posao radi preuzimač: na računalu onaj u `scripts/preuzimac.mjs`, a na
+ * Androidu onaj iz `glazba-preuzimac-android.mjs`. Okvir s njima razgovara kroz
+ * `glazba-preuzimac.mjs` i ne zna koji je iza njega. Na objavljenoj stranici
+ * okvira nema: ondje nema ni yt-dlpa, ni ffmpega, ni mape u koju bi se spremilo.
  *
- * Napredovanje svih poslova dolazi **jednim** tokom događaja
- * (`/preuzmi/dogadaji`), a ne jednim po poslu, jer preglednik na isto ime
- * domaćina drži najviše šest veza. Uz to taj tok pri spajanju najprije pošalje
- * zatečeno stanje, pa okvir koji se zatvori i ponovno otvori zatekne svoje
- * poslove ondje gdje su i bili.
+ * Napredovanje svih poslova dolazi **jednim** tokom, a ne jednim po poslu, jer
+ * preglednik na isto ime domaćina drži najviše šest veza. Uz to taj tok pri
+ * spajanju najprije pošalje zatečeno stanje, pa okvir koji se zatvori i
+ * ponovno otvori zatekne svoje poslove ondje gdje su i bili.
  *
- * @param {{ naZatvori: () => void, naDodano: () => void, naPusti?: (id: string) => void }} props
+ * `pocetneVeze` stiže kad je poveznica podijeljena iz druge aplikacije, pa je
+ * polje već popunjeno kad se okvir otvori.
+ *
+ * @param {{ naZatvori: () => void, naDodano: () => void, naPusti?: (id: string) => void,
+ *           pocetneVeze?: string }} props
  */
-export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
+export default function GlazbaDodaj({ naZatvori, naDodano, naPusti, pocetneVeze }) {
   const jezik = useSyncExternalStore(jezikStanje.prati, jezikStanje.stanje, jezikStanje.stanje);
   const t = useMemo(() => prevoditelj(jezik), [jezik]);
 
-  const [veze, setVeze] = useState("");
+  const [preuzimac, setPreuzimac] = useState(
+    /** @type {import("./glazba-preuzimac.mjs").Preuzimac | null} */ (null),
+  );
+  const [veze, setVeze] = useState(pocetneVeze || "");
   const [stanje, setStanje] = useState(/** @type {any} */ (null));
   const [kakvoca, setKakvoca] = useState("visoka");
   const [poslovi, setPoslovi] = useState(/** @type {any[]} */ ([]));
@@ -37,11 +45,20 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
   const naDodanoRef = useRef(naDodano);
   naDodanoRef.current = naDodano;
 
+  /* Nova podijeljena poveznica dok je okvir već otvoren ide u polje, uz ono
+     što ondje već piše. */
+  useEffect(() => {
+    if (!pocetneVeze) return;
+    setVeze((prije) => (prije.includes(pocetneVeze) ? prije : [prije, pocetneVeze].filter(Boolean).join("\n")));
+  }, [pocetneVeze]);
+
   useEffect(() => {
     let ziv = true;
-    fetch("/preuzmi/stanje")
-      .then((o) => o.json())
-      .then((s) => {
+    dajPreuzimac()
+      .then(async (p) => {
+        if (!ziv) return;
+        setPreuzimac(p);
+        const s = await p.stanje();
         if (!ziv) return;
         setStanje(s);
         if (s && s.zadana) setKakvoca(s.zadana);
@@ -64,11 +81,11 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
    * piše.
    */
   const naOsvjezi = useCallback(async () => {
+    if (!preuzimac) return;
     setOsvjezava(true);
     setGreska(null);
     try {
-      const odgovor = await fetch("/preuzmi/alati", { method: "POST" });
-      const tijelo = await odgovor.json();
+      const tijelo = await preuzimac.osvjeziAlate();
       /* Stanje dolazi i kad padne, jer i tada treba pokazati što se ima: ako
          yt-dlpa nema nikako, to je druga poruka nego ako stari još radi. */
       if (tijelo.alati) {
@@ -78,7 +95,7 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
           alati: tijelo.alati,
         }));
       }
-      if (!odgovor.ok) setGreska(tijelo.greska || { poruka: t("Nov yt-dlp nije stigao.") });
+      if (!tijelo.ok) setGreska(tijelo.greska || { poruka: t("Nov yt-dlp nije stigao.") });
     } catch (e) {
       setGreska({
         poruka: t("Nov yt-dlp nije stigao."),
@@ -87,12 +104,11 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
     } finally {
       setOsvjezava(false);
     }
-  }, []);
+  }, [preuzimac]);
 
   useEffect(() => {
-    const tok = new EventSource("/preuzmi/dogadaji");
-    tok.onmessage = (dogadaj) => {
-      const p = JSON.parse(dogadaj.data);
+    if (!preuzimac) return undefined;
+    return preuzimac.prati((p) => {
       setPoslovi((prije) => {
         const gdje = prije.findIndex((x) => x.id === p.id);
         if (gdje === -1) return [...prije, p];
@@ -104,11 +120,8 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
         javljeni.current.add(p.id);
         naDodanoRef.current();
       }
-    };
-    /* Tok koji pukne ne zatvara se rukom: `EventSource` se sam ponovno spaja, a
-       dulje preuzimanje mora nadživjeti i ponovno pokretanje poslužitelja. */
-    return () => tok.close();
-  }, []);
+    });
+  }, [preuzimac]);
 
   useEffect(() => {
     /** @param {KeyboardEvent} e */
@@ -122,20 +135,15 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
   const procitano = useMemo(() => procitajVeze(veze), [veze]);
 
   const posalji = useCallback(async () => {
-    if (!procitano.prihvacene.length) return;
+    if (!procitano.prihvacene.length || !preuzimac) return;
     setGreska(null);
     setSalje(true);
     try {
-      const odgovor = await fetch("/preuzmi/pretvori", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          veze: procitano.prihvacene.map((/** @type {any} */ v) => v.adresa).join("\n"),
-          kakvoca,
-        }),
+      const podatci = await preuzimac.pretvori({
+        veze: procitano.prihvacene.map((/** @type {any} */ v) => v.adresa).join("\n"),
+        kakvoca,
       });
-      const podatci = await odgovor.json();
-      if (!odgovor.ok) {
+      if (!podatci.ok) {
         setGreska(podatci.greska || { poruka: t("Preuzimač je odbio taj zahtjev.") });
         return;
       }
@@ -151,22 +159,20 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
         return kopija;
       });
     } catch {
-      setGreska({ poruka: t("Ne mogu doći do preuzimača. Radi li još `npm run dev`?") });
+      setGreska({ poruka: t(preuzimac.poruke.nedohvatljiv) });
     } finally {
       setSalje(false);
     }
-  }, [procitano, kakvoca]);
+  }, [procitano, kakvoca, preuzimac]);
 
   /** @param {string} id */
   const odustani = (id) => {
-    fetch("/preuzmi/odustani?id=" + encodeURIComponent(id), { method: "POST" }).catch(() => {});
+    if (preuzimac) preuzimac.odustani(id);
   };
 
   const ocisti = () => {
     for (const p of poslovi) {
-      if (GOTOVI.includes(p.stanje)) {
-        fetch("/preuzmi/zaboravi?id=" + encodeURIComponent(p.id), { method: "POST" }).catch(() => {});
-      }
+      if (GOTOVI.includes(p.stanje) && preuzimac) preuzimac.zaboravi(p.id);
     }
     setPoslovi((prije) => prije.filter((p) => !GOTOVI.includes(p.stanje)));
   };
@@ -247,7 +253,7 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
         {stanje && !stanje.ima ? (
           <p className="gdgreska">
             {stanje.nedostupan
-              ? t("Preuzimač se ne javlja. On radi samo uz `npm run dev`.")
+              ? t(preuzimac ? preuzimac.poruke.nedostupan : "Preuzimač se ne javlja.")
               : t("Nedostaje ") +
                 [
                   stanje.alati && !stanje.alati.ytDlp.ima ? "yt-dlp" : null,
@@ -328,7 +334,13 @@ export default function GlazbaDodaj({ naZatvori, naDodano, naPusti }) {
 
         <p className="gdalati">
           {stanje && stanje.alati && stanje.ima
-            ? "yt-dlp " + stanje.alati.ytDlp.inacica + " · ffmpeg " + stanje.alati.ffmpeg.inacica
+            ? /* Na Androidu ffmpeg nema inačice koju bi se dalo ispisati. */
+              [
+                "yt-dlp " + stanje.alati.ytDlp.inacica,
+                stanje.alati.ffmpeg.inacica ? "ffmpeg " + stanje.alati.ffmpeg.inacica : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")
             : ""}
           {/* Tipka stoji i kad yt-dlpa uopće nema: tada je ona jedini način da
               stigne, a ne samo način da se osvježi. Nema je jedino ondje gdje

@@ -11,7 +11,7 @@
  * Ovdje nema ničega iz `glazba.css`, jer ova datoteka ne crta ništa.
  */
 
-import { KORIJEN, omotAdresa, pustiAdresu, zvukAdresa } from "./glazba-izvor.mjs";
+import { ANDROID, KORIJEN, omotAdresa, pustiAdresu, zvukAdresa } from "./glazba-izvor.mjs";
 
 /* Dosadašnji uvoznici uzimaju `KORIJEN` odavde, pa ostaje gdje je i bio. Sama
    vrijednost sada stoji uz ostalo što zna gdje zbirka jest. */
@@ -311,13 +311,53 @@ function postaviStrazu() {
     if (svira !== doista) {
       svira = doista;
       uskladiOtkucaj();
+      javiSesiji();
       osvjezi();
     }
   }, 1000);
 }
 
+/**
+ * Obavijest i tipke na Androidu, iz `glazba-sesija-android.mjs`. Uvozi se tek
+ * kad zatreba, i samo uz `ANDROID`, pa ga u pregledniku nema.
+ *
+ * @type {Promise<typeof import("./glazba-sesija-android.mjs")> | null}
+ */
+let sesija = null;
+function androidSesija() {
+  if (!sesija) {
+    sesija = import("./glazba-sesija-android.mjs").then((m) => {
+      m.vezi({
+        pusti: () => {
+          if (zvuk && zvuk.paused) prekidac();
+        },
+        stani: () => {
+          if (zvuk && !zvuk.paused) prekidac();
+        },
+        pomakni: (smjer) => pomakni(smjer),
+        premotaj: (s) => premotaj(s),
+      });
+      return m;
+    });
+  }
+  return sesija;
+}
+
+/** Na Androidu obavijest mora znati svira li, inače bi zvuk stao s ekranom. */
+function javiSesiji() {
+  if (!ANDROID) return;
+  const stanje = svira ? "playing" : sada ? "paused" : "none";
+  androidSesija().then((m) => m.javi(stanje, vrijeme, ukupno));
+}
+
 /** Tipke na slušalicama i na tipkovnici prijenosnika. */
 function objaviPjesmu() {
+  if (ANDROID) {
+    if (!sada) return;
+    const p = sada;
+    androidSesija().then((m) => m.objavi({ naslov: p.naslov, izvodac: p.izvodac, omot: omotAdresa(p.omot) }));
+    return;
+  }
   if (typeof navigator === "undefined" || !("mediaSession" in navigator) || !sada) return;
   try {
     navigator.mediaSession.metadata = new window.MediaMetadata({
@@ -436,6 +476,7 @@ function dajZvuk() {
   });
   const naPodatke = () => {
     ukupno = z.duration || 0;
+    javiSesiji();
     osvjezi();
   };
   z.addEventListener("loadedmetadata", naPodatke);
@@ -447,14 +488,19 @@ function dajZvuk() {
     if (tisina) return;
     svira = true;
     uskladiOtkucaj();
+    javiSesiji();
     osvjezi();
   });
   z.addEventListener("pause", () => {
     svira = false;
     uskladiOtkucaj();
     zapamti();
+    javiSesiji();
     osvjezi();
   });
+  /* Traka u obavijesti ne prati `timeupdate`, nego se pomakne samo kad se
+     premota; ostalo sama izračuna iz brzine. */
+  z.addEventListener("seeked", javiSesiji);
   z.addEventListener("ended", () => {
     /* Tišina koja otključava element završi odmah, i to nije kraj pjesme nego
        kraj tišine: bez ovoga bi prvi dodir uzeo sljedeću pjesmu. */
@@ -774,5 +820,6 @@ export function zatvori() {
   /* Mjerač ide s glazbom: kad nema što svirati, nema se što ni zaustaviti. */
   mjerac = null;
   uskladiOtkucaj();
+  javiSesiji();
   osvjezi();
 }

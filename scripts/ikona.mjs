@@ -26,16 +26,22 @@ const PODLOGA = "#0a0a0b";
  * ondje znak pokriva cijelo platno, jer mu sustav sam zaokruži rubove.
  *
  * Zadnja je **maskirna** (`purpose: "maskable"`): Android je smije izrezati u
- * krug, kapljicu ili što god sustav nosi, a reže do petine sa svake strane.
- * Zato je ondje znak uvučen na tri petine platna, na svojoj podlozi, pa
- * preživi svako rezanje. Ista slika u obje uloge znači ili odrezan znak ili
+ * krug, kapljicu ili što god sustav nosi, a sigurno ostaje samo središnji krug
+ * promjera četiri petine platna. Zato je ondje znak uvučen, na svojoj podlozi,
+ * pa preživi svako rezanje. Ista slika u obje uloge znači ili odrezan znak ili
  * znak koji pliva u praznini, pa ih je dvije.
+ *
+ * Uvučen je na 0,73 platna, a ne na tri petine kao prije: na tri petine je na
+ * Samsungovu početnom zaslonu crveni krug zauzimao dvije trećine ikone, a
+ * Spotifyjev zeleni odmah do njega četiri petine, pa je Lucify izgledao sitno.
+ * Na 0,73 su jednaki, a krug (promjera 0,66 platna) i dalje stoji unutar
+ * sigurnoga.
  */
 const MJERE = [
   { mjera: 1024, pun: 1, kamo: path.join("build", "icon.png") },
   { mjera: 192, pun: 1, kamo: path.join("public", "lucify-192.png") },
   { mjera: 512, pun: 1, kamo: path.join("public", "lucify-512.png") },
-  { mjera: 512, pun: 0.6, kamo: path.join("public", "lucify-maska.png") },
+  { mjera: 512, pun: 0.73, kamo: path.join("public", "lucify-maska.png") },
 ];
 
 /* `app.whenReady()` se ovdje **ne smije** čekati vrhovnim `await`-om: Electron

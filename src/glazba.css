@@ -402,7 +402,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.gstavka[aria-current="true"] b,
+/* Zeleno je samo popis iz kojega je pjesma koja svira ili stoji zaustavljena.
+   Otvoreni popis ima samo tamniju podlogu: da je i on zelen, dva bi popisa
+   izgledala kao da sviraju. */
 .gstavka.svira b {
   color: var(--zeleno);
 }

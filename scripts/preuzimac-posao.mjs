@@ -11,6 +11,7 @@
 
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { procitajGresku } from "../src/glazba-greske.mjs";
 import { Greska, nadiFfmpeg, nadiYtDlp, pokreni } from "./preuzimac-alati.mjs";
 
 /**
@@ -228,62 +229,13 @@ export async function uMp3(korijen, opcije) {
 
 /**
  * Od yt-dlpova ispisa napravi jednu rečenicu s kojom se može nešto poduzeti.
- * Uzorci ostaju engleski, jer je engleski i ono što yt-dlp ispisuje.
+ * Sama pravila stoje u `src/glazba-greske.mjs`, jer isti ispis čita i Lucify
+ * na Androidu.
  *
  * @param {any} e @param {string} zadano
  */
 function prevedi(e, zadano) {
   if (e instanceof Greska && e.oznaka !== "IZLAZ_NIJE_NULA") return e;
-
-  const rep = (e && (e.rep || e.detalj)) || "";
-  /** @type {[RegExp, string, string][]} */
-  const pravila = [
-    [/Private video/i, "PRIVATNO", "Ova je snimka privatna."],
-    [/members[- ]only|join this channel/i, "ZA_ČLANOVE", "Ova je snimka samo za članove kanala."],
-    [
-      /video (is )?unavailable|has been removed|no longer available|does not exist/i,
-      "NEMA_JE",
-      "Ove snimke više nema ili je uklonjena.",
-    ],
-    [
-      /confirm your age|age[- ]restricted|inappropriate for some users/i,
-      "DOB",
-      "Ova snimka traži potvrdu dobi, pa se ne može pročitati bez prijave.",
-    ],
-    [
-      /not a bot|Sign in to confirm|cookies/i,
-      "PRIJAVA",
-      "YouTube za ovaj zahtjev traži prijavu. Pokušaj poslije.",
-    ],
-    [/not available in your country|blocked it .*country|geo/i, "DRŽAVA", "Ova je snimka zaključana za ovu zemlju."],
-    [/HTTP Error 429|Too Many Requests/i, "PREVIŠE", "YouTube usporava ovo računalo. Pričekaj pa pokušaj opet."],
-    [/Requested format is not available/i, "BEZ_ZAPISA", "Za ovu snimku nije ponuđen nijedan zvučni zapis."],
-    [/Unsupported URL/i, "NEPOZNATA", "yt-dlp ne prepoznaje tu poveznicu."],
-    [
-      /getaddrinfo|Failed to resolve|Temporary failure|Connection refused|Network is unreachable|urlopen error/i,
-      "MREŽA",
-      "Ne mogu doći do YouTubea. Provjeri internet.",
-    ],
-    [
-      /nsig extraction failed|Signature extraction failed|update .*yt-dlp|player .* not found/i,
-      "STARI_YTDLP",
-      "yt-dlp je zastario za današnji YouTube. Osvježi ga i pokušaj opet.",
-    ],
-  ];
-
-  for (const [uzorak, oznaka, poruka] of pravila) {
-    if (uzorak.test(rep)) return new Greska(oznaka, poruka, zadnjaGreska(rep));
-  }
-
-  return new Greska("NEUSPJEH", zadano, zadnjaGreska(rep));
-}
-
-/** @param {string} rep */
-function zadnjaGreska(rep) {
-  const redci = String(rep)
-    .split("\n")
-    .map((r) => r.trim())
-    .filter(Boolean);
-  const greska = [...redci].reverse().find((r) => /^error/i.test(r));
-  return (greska || redci[redci.length - 1] || "").slice(0, 300);
+  const g = procitajGresku((e && (e.rep || e.detalj)) || "", zadano);
+  return new Greska(g.oznaka, g.poruka, g.detalj);
 }

@@ -7,10 +7,12 @@ Prije je ovo bio alat unutar školske mape **Lucijankice** i ondje je imao tipku
 bilješke”. Ondje se zvao **Slušaonica**; ovdje je sam sebi stranica i zove se Lucify. Sve
 ostalo je isto.
 
-Živi na tri načina: kao stranica na razvojnom poslužitelju, kao **namjenska aplikacija za
-Windows**, koja se instalira i otvara kao svaki drugi program, i kao **program na
-mobitelu**, koji se doda na početni zaslon i nosi zbirku u samom uređaju. Prvo je opisano
-[na dnu](#namjenska-aplikacija), a drugo [malo iznad](#lucify-na-mobitelu).
+Živi na četiri načina: kao stranica na razvojnom poslužitelju, kao **namjenska aplikacija
+za Windows**, koja se instalira i otvara kao svaki drugi program, kao **program na
+mobitelu**, koji se doda na početni zaslon i nosi zbirku u samom uređaju, i kao
+**aplikacija za Android**, koja uz to i sama preuzima pjesme. Prvo je opisano
+[na dnu](#namjenska-aplikacija), drugo [malo iznad](#lucify-na-mobitelu), a treće
+[odmah ispod njega](#aplikacija-za-android).
 
 Znak stoji u `public/lucify.svg`, i to je jedini primjerak koji se mijenja: iz njega
 `npm run ikona` napravi `build/icon.png`, iz koje graditelj složi ikonu programa, i
@@ -92,6 +94,12 @@ Zato ih na razvojnom poslužitelju poslužuje mali dodatak u `vite.config.js`, s
 `/glazba/`, i to samo uz `apply: "serve"`. Popis se zato **dohvaća, a ne uvozi**: da se
 uvozi, build bi pao ondje gdje zbirke nema. Ovako Lucify ondje samo kaže da je zbirka
 prazna, i to je namjerno.
+
+**`npm run dev` pokazuje istu zbirku kao gotov program.** Ako postoji
+`Glazba/Lucify/Glazba/Zvuk/popis.json` (ili mapa odabrana u programu, ili
+`LUCIFY_ZBIRKA`), razvojni poslužitelj čita odande, a ne iz projekta. Prije su
+`localhost` i `.exe` pokazivali dvije različite zbirke, jer je sve dodano kroz
+program stajalo samo ondje. Mapa projekta ostaje zadnja mogućnost.
 
 **Provjera nakon `npm run build`:** u `dist/` ne smije biti mape `glazba`, ni datoteke
 `popis.json`, ni ijednoga naslova pjesme u `assets/*.js`.
@@ -333,7 +341,85 @@ prvoga odabira. Kad bi se višak računao iz odabira, drugi bi uvoz pobrisao sve
 donio prvi.
 
 **Preuzimanja ondje nema**, kao ni prije: iza objavljene stranice ne stoje ni yt-dlp ni
-ffmpeg. Nove pjesme ulaze na računalu, pa se izvoz ponovi.
+ffmpeg. Nove pjesme ulaze na računalu, pa se izvoz ponovi — ili se na Androidu uzme
+[aplikacija](#aplikacija-za-android), koja preuzima sama.
+
+## Aplikacija za Android
+
+Isti Lucify, ali instaliran kao prava aplikacija, s **yt-dlpom, Pythonom i ffmpegom u
+sebi** (knjižnica [youtubedl-android](https://github.com/JunkFood02/youtubedl-android),
+ista koju nosi Seal). Zato ondje stoji tipka **Dodaj pjesmu**, kao na računalu, a pjesma
+se preuzme, pretvori i spremi u samom mobitelu, bez računala i bez poslužitelja.
+
+Sve ostalo je kao u programu na mobitelu: zbirka stoji u uređaju, u IndexedDB, uvoz iz
+datoteke radi i dalje, a pjesma preuzeta na mobitelu i uvezena pjesma poslije se ne
+razlikuju ni po čemu.
+
+```bash
+npm run android             # složi stranicu u dist-android/ i prepiše je u android/
+npm run apk                 # uz to i APK u izdanje/, potpisan ako ima ključa
+npm run apk -- --debug      # razvojna inačica, i za emulator
+```
+
+Za gradnju treba **Java 21** i **Android SDK** (platforma 36). Nijedno se ne instalira:
+`scripts/android.mjs` ih traži u `JAVA_HOME` i `ANDROID_HOME`, a kad tih varijabli nema,
+u `%LOCALAPPDATA%\Java\jdk-21…` i `%LOCALAPPDATA%\Android\Sdk`. APK nosi samo `arm64-v8a`,
+jer su Python i ffmpeg po procesoru tridesetak megabajta; razvojna inačica nosi i
+`x86_64`, za emulator.
+
+**Kako radi.** Okvir „Dodaj pjesmu” ne zna je li iza njega poslužitelj ili mobitel: s
+preuzimačem razgovara kroz `src/glazba-preuzimac.mjs`. Na računalu je iza toga `fetch` na
+`/preuzmi/`, a na Androidu `src/glazba-preuzimac-android.mjs`, koji drži isti red čekanja,
+ista stanja i iste poruke kao `scripts/preuzimac.mjs`, a programe pokreće
+`LucifyPreuzimacPlugin.java`. Naslovi se čiste istim kodom (`src/glazba-naslovi.mjs`), i
+greške yt-dlpa čitaju istim pravilima (`src/glazba-greske.mjs`), kao na računalu.
+
+Pjesma preuzeta na mobitelu u popisu nosi `naUredaju: true`. Računalo za nju ne zna, pa je
+nema ni u popisu koji stigne sljedećim uvozom; po tom polju je uvoz ne izbaci, a
+**Počisti** ne broji u višak.
+
+**Dijeljenje.** U YouTubeu **Dijeli → Lucify** otvori aplikaciju s poveznicom već u
+okviru „Dodaj pjesmu”. Ostaje pritisnuti **Preuzmi**.
+
+**Glazba uz ugašen zaslon.** WebView sam od sebe ne drži zvuk kad se aplikacija skloni i
+ne crta obavijest, pa to radi `@capgo/capacitor-media-session`: uz sviranje digne uslugu
+u prvom planu, s obaviješću i tipkama. Most do nje je `src/glazba-sesija-android.mjs`.
+
+**yt-dlp zastari**, kao i na računalu. Tipka **osvježi yt-dlp** u okviru dohvati novi s
+GitHuba, u samu aplikaciju, bez nove inačice APK-a.
+
+**Ograničenja.** Samo Android, i samo iz APK-a (dopustiti instalaciju iz nepoznatih
+izvora); Trgovine nema. Aplikacija se ne nadograđuje sama: nova inačica je novi APK iz
+izdanja. Preuzimanje radi dok je aplikacija otvorena; zatvori li se usred duge pjesme,
+posao zna stati.
+
+### Ključ za potpis
+
+Android novu inačicu instalira preko stare samo ako je potpisana **istim ključem**. Ključ
+zato ne ide u git (`*.jks` je u `.gitignore`), a tko ga izgubi, mora aplikaciju obrisati,
+pa sa zbirkom, i instalirati iznova.
+
+Lokalno ga `android/keystore.properties` (također izvan gita) pokazuje ovako:
+
+```properties
+storeFile=C:/Users/.../.lucify/lucify.jks
+storePassword=...
+keyAlias=lucify
+keyPassword=...
+```
+
+Na GitHubu isti ključ stoji u četiri tajne, a „Izdanje” uz `.exe` složi i APK i priloži
+ga **istom nacrtu**. Imena tajni su opisana na vrhu posla `android` u
+`.github/workflows/izdanje.yml`. Bez njih se oznaka ne objavljuje, jer nepotpisan APK ne
+da se ni instalirati.
+
+### Java i „Unable to establish loopback connection”
+
+Java 21 na Windowsima unutarnje cijevi otvara kao priključnicu u mapi `TEMP`. Kad je ta
+putanja skraćena (`C:\Users\LEOB~1\...`), spajanje padne i Gradle se ne digne uopće.
+`scripts/android.mjs` zato Javi zada mapu bez razmaka i tilde,
+`C:\Users\Public\lucify-uds`. Tko pokreće `gradlew` rukom, treba isto:
+`JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:\Users\Public\lucify-uds`.
 
 ## Postavke se pamte po pregledniku
 

@@ -9,6 +9,13 @@ dist-ssr
 # ostaje, jer se iz nje gradi.
 izdanje
 
+# aplikacija za Android: stranica se za nju slaže zasebno, a ključ za potpis
+# ne smije nikamo. Tko ga izgubi, novu inačicu ne može instalirati preko stare.
+dist-android
+android/keystore.properties
+*.jks
+*.keystore
+
 # logovi
 logs
 *.log

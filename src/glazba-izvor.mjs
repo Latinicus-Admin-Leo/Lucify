@@ -24,6 +24,14 @@ export const KORIJEN = import.meta.env.BASE_URL || "/";
 export const NA_UREDAJU = !(import.meta.env.DEV || import.meta.env.MODE === "namjenska");
 
 /**
+ * Lucify kao aplikacija za Android (`npm run build:android`). Zbirka mu stoji na
+ * uređaju, isto kao objavljenoj stranici, pa je `NA_UREDAJU` i ovdje istina.
+ * Razlika je jedna, ali velika: uza nj stoje yt-dlp i ffmpeg, pa pjesmu preuzme
+ * sam, bez poslužitelja i bez računala.
+ */
+export const ANDROID = import.meta.env.MODE === "android";
+
+/**
  * Spremište se uvozi tek kad zatreba, i samo ondje gdje se doista koristi.
  * Uvjet je doslovna vrijednost u buildu, pa u namjenskoj aplikaciji cijela ova
  * grana, a s njom i `glazba-spremiste.mjs`, ispadne iz izlaza.

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Lucify</string>
+    <string name="title_activity_main">Lucify</string>
+    <string name="package_name">hr.lucify.svirac</string>
+    <string name="custom_url_scheme">hr.lucify.svirac</string>
+</resources>
