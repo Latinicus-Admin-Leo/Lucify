@@ -1,9 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Lucify">
   <circle cx="256" cy="256" r="232" fill="#b83a1b"/>
-  <g fill="none" stroke="#f5a45c" stroke-width="40" stroke-linecap="round">
-    <path d="M264 356A96 96 0 0 0 168 260"/>
-    <path d="M324 356A156 156 0 0 0 168 200"/>
-    <path d="M384 356A216 216 0 0 0 168 140"/>
+  <g fill="none" stroke="#f5a45c" stroke-linecap="round">
+    <path d="M110.8 189.3Q262.4 132 414 221.7" stroke-width="39.7"/>
+    <path d="M124.5 260.6Q255.5 209 386.6 287.1" stroke-width="36.5"/>
+    <path d="M136.8 328.2Q247.3 285.7 358.3 345.5" stroke-width="32.9"/>
   </g>
-  <circle cx="168" cy="356" r="26" fill="#f5a45c"/>
 </svg>

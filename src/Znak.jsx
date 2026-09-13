@@ -1,5 +1,5 @@
 /*
- * Znak Lucifyja: val koji se širi iz donjega lijevog kuta. Stoji ovdje kao
+ * Znak Lucifyja: tri luka u krugu, sve kraći prema dnu. Stoji ovdje kao
  * ugrađeni SVG, a ne kao `<img>` na `public/lucify.svg`, jer se u gornjoj traci
  * crta pri svakom prikazu: ugrađen ne traži ništa izvana i ne trepne dok se
  * dohvaća. Istu sliku ipak treba i kao datoteku u `public/lucify.svg`, jer je
@@ -19,12 +19,11 @@ export default function Znak({ mjera = 22 }) {
       style={{ display: "block", flex: "none" }}
     >
       <circle cx="256" cy="256" r="232" fill="#b83a1b" />
-      <g fill="none" stroke="#f5a45c" strokeWidth="40" strokeLinecap="round">
-        <path d="M264 356A96 96 0 0 0 168 260" />
-        <path d="M324 356A156 156 0 0 0 168 200" />
-        <path d="M384 356A216 216 0 0 0 168 140" />
+      <g fill="none" stroke="#f5a45c" strokeLinecap="round">
+        <path d="M110.8 189.3Q262.4 132 414 221.7" strokeWidth="39.7" />
+        <path d="M124.5 260.6Q255.5 209 386.6 287.1" strokeWidth="36.5" />
+        <path d="M136.8 328.2Q247.3 285.7 358.3 345.5" strokeWidth="32.9" />
       </g>
-      <circle cx="168" cy="356" r="26" fill="#f5a45c" />
     </svg>
   );
 }
