@@ -11,13 +11,14 @@
  * megabajta i mora preživjeti nadogradnju.
  */
 
-import { app, BrowserWindow, Menu, dialog, shell } from "electron";
+import { app, BrowserWindow, Menu, Notification, dialog, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import elektronskiNadograditelj from "electron-updater";
 import { pokreniPosluzitelj } from "./posluzitelj.mjs";
+import { windowsBrani } from "./zapreka.mjs";
 import { izvezi, izveziZip } from "../scripts/izvezi.mjs";
 
 /* `electron-updater` je CommonJS, pa iz njega izlazi jedan predmet, a ne
@@ -36,10 +37,16 @@ const VISINA_TRAKE = 58;
 const ovdje = path.dirname(fileURLToPath(import.meta.url));
 const korijenPrograma = path.join(ovdje, "..");
 
-/** Postavke: zasad samo mapa zbirke. Stoje uz podatke aplikacije, ne uz program. */
+/**
+ * Postavke: mapa zbirke i inačica za koju je već rečeno da je Windows ne pušta.
+ * Stoje uz podatke aplikacije, ne uz program.
+ */
 const postavkePut = () => path.join(app.getPath("userData"), "postavke.json");
 
-/** @returns {{ zbirka?: string }} */
+/** Stranica s izdanjima, kamo se ide kad nadogradnja ne ide sama. */
+const IZDANJA = "https://github.com/Latinicus-Admin-Leo/Lucify/releases/latest";
+
+/** @returns {{ zbirka?: string, javljenaZapreka?: string }} */
 function procitajPostavke() {
   try {
     return JSON.parse(readFileSync(postavkePut(), "utf8"));
@@ -48,7 +55,7 @@ function procitajPostavke() {
   }
 }
 
-/** @param {{ zbirka?: string }} nove */
+/** @param {{ zbirka?: string, javljenaZapreka?: string }} nove */
 function zapisiPostavke(nove) {
   writeFileSync(postavkePut(), JSON.stringify(nove, null, 2) + "\n", "utf8");
 }
@@ -131,6 +138,12 @@ function pripremiYtDlp(zbirka) {
  *   nadograditelj ne zna ni naći ni zamijeniti. Prepoznaje se po tome što mu
  *   graditelj upiše `PORTABLE_EXECUTABLE_DIR`;
  * - kad izdanja još nema, što nije greška nego samo tišina.
+ *
+ * Obavijest „instalirat će se kad zatvoriš” šalje se odavde, a ne iz
+ * `checkForUpdatesAndNotify`, jer se prije nje mora pitati **pušta li je
+ * Windows uopće** (`zapreka.mjs`). Kad je ne pušta, instalacija pri zatvaranju
+ * se isključi, pa nema ni pitanja za administratora ni kruga u kojem se ista
+ * nadogradnja nudi svaki put; umjesto toga to se kaže jednom, riječima.
  */
 function pripremiNadogradnju() {
   if (!app.isPackaged) return;
@@ -142,9 +155,61 @@ function pripremiNadogradnju() {
     console.error("Nadogradnja: " + (greska && greska.message ? greska.message : String(greska)));
   });
 
-  autoUpdater.checkForUpdatesAndNotify().catch(() => {
+  /* Dok se ne zna pušta li Windows instalaciju, pri zatvaranju se ne pokreće
+     ništa: zatvori li čovjek Lucify baš dok provjera traje, krug bi počeo. */
+  autoUpdater.autoInstallOnAppQuit = false;
+
+  autoUpdater.on("update-downloaded", (podatci) => {
+    naPreuzeto(podatci).catch((greska) => console.error("Nadogradnja: " + String(greska)));
+  });
+
+  autoUpdater.checkForUpdates().catch(() => {
     /* već je javljeno gore */
   });
+}
+
+/** Je li provjeru pokrenuo čovjek iz jelovnika. Tada se zapreka kaže i drugi put. */
+let rucnaProvjera = false;
+
+/**
+ * Nadogradnja je preuzeta. Ili će se instalirati pri zatvaranju, ili je
+ * Windows ne pušta, pa se to kaže.
+ *
+ * @param {{ version: string, downloadedFile?: string }} podatci
+ */
+async function naPreuzeto(podatci) {
+  const rucno = rucnaProvjera;
+  rucnaProvjera = false;
+
+  if (podatci.downloadedFile && (await windowsBrani(podatci.downloadedFile))) {
+    autoUpdater.autoInstallOnAppQuit = false;
+    const postavke = procitajPostavke();
+    if (!rucno && postavke.javljenaZapreka === podatci.version) return;
+    zapisiPostavke({ ...postavke, javljenaZapreka: podatci.version });
+
+    const { response } = await dialog.showMessageBox({
+      type: "warning",
+      buttons: ["Otvori izdanja", "U redu"],
+      defaultId: 1,
+      cancelId: 1,
+      message: "Lucify " + podatci.version + " je preuzet, ali ga Windows ne da instalirati.",
+      detail:
+        "Na ovom računalu uključena je Pametna kontrola aplikacija (Smart App Control), a ona ne " +
+        "pušta programe bez digitalnog potpisa. Lucify ga nema, pa se ne nadograđuje sam.\n\n" +
+        "Isključuje se u Sigurnosti sustava Windows → Kontrola aplikacija i preglednika → Postavke " +
+        "pametne kontrole aplikacija. Poslije toga Lucify se nadogradi sam, pri idućem zatvaranju.",
+    });
+    if (response === 0) shell.openExternal(IZDANJA);
+    return;
+  }
+
+  autoUpdater.autoInstallOnAppQuit = true;
+  if (Notification.isSupported()) {
+    new Notification({
+      title: "Nova inačica Lucifyja",
+      body: "Lucify " + podatci.version + " je preuzet i instalirat će se kad ga zatvoriš.",
+    }).show();
+  }
 }
 
 /**
@@ -164,6 +229,7 @@ async function provjeriNadogradnju() {
   }
 
   try {
+    rucnaProvjera = true;
     const ishod = await autoUpdater.checkForUpdates();
     const novija = ishod && ishod.updateInfo && ishod.updateInfo.version;
     if (!novija || novija === app.getVersion()) {
@@ -174,7 +240,7 @@ async function provjeriNadogradnju() {
       });
     }
     /* Ako novija postoji, `checkForUpdates` ju je već počeo preuzimati, a
-       `checkForUpdatesAndNotify` javi kad bude gotova. */
+       `naPreuzeto` javi kad bude gotova, i kaže ako je Windows ne pušta. */
   } catch (greska) {
     await dialog.showMessageBox({
       type: "warning",

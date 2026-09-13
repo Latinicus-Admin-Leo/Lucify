@@ -484,6 +484,23 @@ upravo po tome. `npm version` zato slaže oboje zajedno.
 Bez oznake se tok dade potjerati i rukom („Run workflow”), i tada samo gradi: ništa se ne
 objavljuje, a gotov program visi na samoj gradnji, pod „Lucify-izdanje”.
 
+### Pametna kontrola aplikacija ne pušta nepotpisan program
+
+Lucify za Windows **nije digitalno potpisan**. Na računalu na kojem je uključena Pametna
+kontrola aplikacija (Smart App Control) Windows zato ne pušta ni instalaciju ni
+nadogradnju: pokretanje padne s greškom 4551, „An Application Control policy has blocked
+this file”.
+
+Nadograditelj za to sam ne zna. Prije 1.0.7 pokušao bi instalaciju pokrenuti, pa još
+jednom s pravima administratora (odatle pitanje „dopustiti promjene?”), Windows bi obje
+odbio, a pri sljedećem otvaranju ista bi se nadogradnja nudila iznova, u krug. Sada
+`electron/zapreka.mjs` prije toga pogleda je li Pametna kontrola uključena i je li
+preuzeta instalacija potpisana. Ako je Windows ne pušta, instalacija pri zatvaranju se
+isključi, a Lucify to kaže jednom, u prozoru, s putem do postavke.
+
+Lijek je jedno od dvoga: isključiti Pametnu kontrolu (Sigurnost sustava Windows →
+Kontrola aplikacija i preglednika), ili potpisivati izdanja certifikatom za potpis koda.
+
 ### Gdje zbirka stoji
 
 Program ide u `Program Files`, kamo se ne piše, pa zbirka ondje **ne stoji uz njega**,
